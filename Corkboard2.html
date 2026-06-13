@@ -1,0 +1,3116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corkboard 2</title>
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%20fill%3D%22%23dd0000%22%20style%3D%22rotate%3A%20-45deg%22%3E%3Cpath%20d%3D%22m640-480%2080%2080v80H520v240l-40%2040-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286%2080h252l-46-46v-314H400v314l-46%2046Zm126%200Z%22%2F%3E%3C%2Fsvg%3E" type="image/x-icon">
+    <style id="style-root">
+        :root {
+            --hover-filter: sepia(100%) hue-rotate(12deg) saturate(250%);
+            --reject-filter: sepia(100%) hue-rotate(-50deg) saturate(500%);
+            --delete-filter: brightness(70%) sepia(500%) hue-rotate(-45deg) saturate(1000%);
+            --selected-filter: brightness(90%);
+            --hover-pin-filter: hue-rotate(50deg) sepia(70%) brightness(200%);
+            --hover-grouping-filter: sepia(50%) saturate(10000%) brightness(80%);
+            --selected-pin-filter: sepia(70%) hue-rotate(12deg) saturate(250%);
+            --selected-pin-transform: scale(105%);
+            --low-shadow-filter: drop-shadow(2px 2px #00000070);
+            --shadow-filter: drop-shadow(5px 5px #00000070);
+            --high-shadow-filter: drop-shadow(7px 7px #00000070);
+        }
+    </style><style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100vh;
+            width: 100vw;
+            margin: 0px;
+            padding: 0px;
+            overflow: hidden;
+        }
+
+        main {
+            background-image: url("Corkboard Texture.png");
+            background-size: 50% auto;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            z-index: 0;
+            filter: saturate(80%);
+        }
+
+        #controls {
+            position: absolute;
+            left: 15px;
+            bottom: 15px;
+            display: flex;
+            gap: 5px;
+
+            > button {
+                display: block;
+                height: 65px;
+                aspect-ratio: 1;
+                border-radius: 10px;
+                background-color: white;
+
+                > svg {
+                    width: 80%;
+                }
+            }
+
+            > button:hover {
+                filter: var(--hover-filter);
+            }
+        }
+    </style>
+    <style id="style-cards">
+        custom-card, custom-card-template, custom-card-preview {
+            position: absolute;
+            background-color: white;
+            border: 1px solid black;
+            display: flex;
+            flex-direction: column;
+            align-content: center;
+            filter: var(--shadow-filter);
+            transform: translate(-50%, -50%);
+            padding: 2px 4px;
+            z-index: 15;
+            
+            *::selection {
+                background-color: #00000000;
+            }
+        }
+
+        custom-card.tiny, custom-card-template.tiny, custom-card-preview.tiny {width: 50px;}
+        custom-card.small, custom-card-template.small, custom-card-preview.small {width: 80px;}
+        custom-card.medium, custom-card-template.medium, custom-card-preview.medium {width: 100px;}
+        custom-card.large, custom-card-template.large, custom-card-preview.large {width: 120px;}
+        custom-card.huge, custom-card-template.huge, custom-card-preview.huge {width: 150px;}
+        custom-card.obscene, custom-card-template.obscene, custom-card-preview.obscene {width: 350px;}
+
+        custom-card:not(:has(custom-pin:hover)):hover, custom-card-template:hover {
+            filter: var(--shadow-filter) var(--hover-filter);
+        }
+
+        custom-card-template {
+            position: relative;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1.5);
+        }
+
+        custom-card-preview {
+            position: absolute;
+            z-index: 30;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+    </style>
+    <style id="style-cardStore">
+        #cardStore {
+            transition: right 300ms;
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            background-color: rgb(238, 243, 248);
+            border-left: 3px solid grey;
+            padding: 10px;
+            width: 20%;
+            min-width: 300px;
+            z-index: 20;
+
+            > .storeCard {
+                width: 100%;
+                position: relative;
+            }
+
+            > #storeBlankCard {
+                height: 100px;
+            }
+
+            > #storePersonCard {
+                height: 250px;
+            }
+
+            > #storeGrouping {
+                height: 80px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            > #cardStoreToggle {
+                background-color: rgb(238, 243, 248);
+                border: none;
+                border-left: 2px solid grey;
+                border-bottom: 2px solid grey;
+                border-right: 1px solid lightgrey;
+                border-radius: 0 0 0 10px;
+                height: 40px;
+                aspect-ratio: 1;
+                position: absolute;
+                right: 100%;
+                top: 0;
+
+                > svg {    
+                    transition: rotate 300ms;
+                    rotate: 0deg;
+                    width: 80%;
+                }
+            }
+            
+            > #cardStoreToggle:hover {
+                background-color: rgb(221, 227, 233);
+            }
+        }
+    </style>
+    <style id="style-cardEditor">
+        #cardEditor {
+            transition: right 300ms;
+            position: absolute;
+            top: 0;
+            right: -100%;
+            height: 100%;
+            background-color: rgb(238, 243, 248);
+            border-left: 3px solid grey;
+            padding: 10px;
+            width: calc(20% + 50px);
+            min-width: 350px;
+            padding-top: 0;
+            z-index: 25;
+
+            > ol {
+                width: 100%;
+                padding: 0;
+                margin: 0;
+            }
+        }
+        
+        #cardSizeEditor {
+            display: flex;
+            justify-content: space-between;
+            gap: 2px;
+            padding: 5% 5% 6% 5%;
+            border-bottom: 2px solid rgb(192, 192, 192);
+
+            > input[type=radio] {
+                appearance: auto;
+                -moz-appearance: initial;
+                display: inline-block;
+                height: 20px;
+                width: 60px;
+            }
+            
+            > input[type=radio]::after {
+                border: 1px solid black;
+                position: relative;
+                display: block;
+                width: 100%;
+                padding: 2px;
+                text-align: center;
+                border: 1px solid grey;
+                box-shadow: inset -1px -1px black;
+                background-color: white;
+            }
+
+            > input[type=radio]:nth-child(1)::after {
+                content: "Tiny";
+                border-radius: 5px 0 0 5px;
+            }
+            
+            > input[type=radio]:nth-child(2)::after {
+                content: "Small";
+            }
+
+            > input[type=radio]:nth-child(3)::after {
+                content: "Medium";
+            }
+
+            > input[type=radio]:nth-child(4)::after {
+                content: "Large";
+            }
+
+            > input[type=radio]:nth-child(5)::after {
+                content: "Huge";
+            }
+
+            > input[type=radio]:nth-child(6)::after {
+                content: "Obscene";
+                border-radius: 0 5px 5px 0;
+            }
+
+            > input[type=radio]:checked::after {
+                filter: var(--selected-filter);
+                box-shadow: inset 1px 1px black;
+            }
+
+            > input[type=radio]:hover {
+                filter: var(--hover-filter);
+            }
+        }
+
+        #cardSectionEditor {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10%;
+            padding: 5%;
+        }
+    </style>
+    <style id="style-groupingEditor">
+        #groupingEditor {
+            transition: right 300ms;
+            position: absolute;
+            top: 0;
+            right: -100%;
+            height: 100%;
+            background-color: rgb(238, 243, 248);
+            border-left: 3px solid grey;
+            padding: 10px;
+            width: calc(20% + 50px);
+            min-width: 350px;
+            padding-top: 10px;
+            z-index: 25;
+
+            div {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+
+                > * {
+                    height: 30px;
+                    width: 100%;
+                    border-radius: 5px;
+                }
+
+                > *:nth-child(1) {
+                    text-align: left;
+                    padding-left: 10px;
+                }
+
+                > *:nth-child(2) {
+                    text-align: right;
+                    padding-right: 10px;
+                }
+            }
+        }
+    </style>
+    <style id="style-sections">
+        .section {
+            display: flex;
+            width: 100%;
+            overflow: hidden;
+            align-items: center;
+        }
+
+        custom-text-section {
+            white-space: pre-wrap;
+            font-family: sans-serif;
+
+            > div {
+                flex-grow: 1;
+                vertical-align: middle;
+            }
+
+            > div.leftPinned, > div.rightPinned {
+                max-width: calc(100% - 10px);
+            }
+
+            > div.leftPinned.rightPinned {
+                max-width: calc(100% - 20px);
+            }
+        }
+
+        custom-image-section {
+            > img {
+                width: 100%;
+                border: 1px solid lightgrey;
+                margin: 2px;
+            }
+        }
+    </style>
+    <style id="style-sectionEditors">
+        .sectionEditor {
+            width: 100%;
+            padding-top: 5px;
+            padding-bottom: 7px;
+            border-bottom: 2px solid rgb(192, 192, 192);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            > div {
+                width: calc(100% - 45px - 55px - 20px);
+                gap: 2%;
+            }
+        }
+
+        custom-text-section-editor {
+            > div {
+                display: flex;
+                flex-direction: column;
+
+                > textarea {
+                    resize: none;
+                }
+
+                > .textControls {
+                    display: flex;
+                    justify-content: end;
+                    gap: 2%;
+                    height: max-content;
+                    --text-control-button-size: 15px;
+
+                    .fontColorInput {
+                        width: 35px;
+                    }
+
+                    .fontColorInput, .fontSizeInput {
+                        border-radius: 5px;
+                        height: calc(var(--text-control-button-size) + 5px);
+                        margin-top: 2.5px;
+                        border-width: 1px;
+                        box-shadow: inset 1px 1px black;
+                    }
+
+                    .textStyleControls, .textAlignControls {
+                        width: max-content;
+                        margin-right: 4px;
+                        padding: 0;
+                    }
+
+                    input[type="checkbox"], input[type="radio"] {
+                        appearance: auto;
+                        -moz-appearance: initial;
+                        display: inline-block;
+                        width: var(--text-control-button-size);
+                        margin: 2px;
+                    }
+
+                    input[type="checkbox"]::after, input[type="radio"]::after {
+                        position: relative;
+                        display: inline-block;
+                        text-align: center;
+                        height: var(--text-control-button-size);
+                        width: var(--text-control-button-size);
+                        line-height: var(--text-control-button-size);
+                        font-size: calc(var(--text-control-button-size) * 0.9);
+                        padding: 2px;
+                        text-align: center;
+                        border: 1px solid grey;
+                        box-shadow: inset -1px -1px black;
+                        background-color: white;
+                    }
+
+                    input[type="checkbox"]:first-child::after, input[type="radio"]:first-child::after {
+                        border-radius: 5px 0 0 5px;
+                    }
+
+                    input[type="checkbox"]:last-child::after, input[type="radio"]:last-child::after {
+                        border-radius: 0 5px 5px 0;
+                    }
+
+                    input[type="checkbox"]:checked::after, input[type="radio"]:checked::after {
+                        filter: var(--selected-filter);
+                        box-shadow: inset 1px 1px black;
+                    }
+
+                    input[type="checkbox"]:hover::after, input[type="radio"]:hover::after {
+                        filter: var(--hover-filter);
+                    }
+
+                    .boldInput::after {
+                        content: "B";
+                        font-weight: bold;
+                    }
+
+                    .italicInput::after {
+                        content: "I";
+                        font-style: italic;
+                    }
+
+                    .underlineInput::after {
+                        content: "U";
+                        text-decoration: underline;
+                    }
+
+                    .textAlignLeftInput::after {
+                        content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges' viewBox='0 -960 960 960' fill='%23000'%3E%3Cpath d='M120-120v-80h720v80H120Zm0-160v-80h480v80H120Zm0-160v-80h720v80H120Zm0-160v-80h480v80H120Zm0-160v-80h720v80H120Z'/%3E%3C/svg%3E");
+                    }
+                    
+                    .textAlignCenterInput::after {
+                        content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges' viewBox='0 -960 960 960' fill='%23000'%3E%3Cpath d='M120-120v-80h720v80H120Zm160-160v-80h400v80H280ZM120-440v-80h720v80H120Zm160-160v-80h400v80H280ZM120-760v-80h720v80H120Z'/%3E%3C/svg%3E");
+                    }
+
+                    .textAlignRightInput::after {
+                        content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' shape-rendering='crispEdges' viewBox='0 -960 960 960' fill='%23000'%3E%3Cpath d='M120-760v-80h720v80H120Zm240 160v-80h480v80H360ZM120-440v-80h720v80H120Zm240 160v-80h480v80H360ZM120-120v-80h720v80H120Z'/%3E%3C/svg%3E");
+                    }
+                }
+            }
+        }
+
+        custom-image-section-editor {
+            > div {         
+                display: flex;
+
+                > div:first-child {
+                    width: 50px;
+                    max-height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-around;
+
+                    > img {
+                        max-width: 100%;
+                        max-height: 100%;
+                        border: 1px solid lightgrey;
+                    }
+                }
+
+                > .uploadControls {
+                    flex-grow: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+
+                    > input[type=file] {
+                        width: 150px;
+                        flex-grow: 1;
+                    }
+                    
+                    > input[type=reset] {
+                        width: min-content;
+                        height: min-content;
+                    }
+                }
+            }
+        }
+    </style>
+    <style id="style-pins">
+        custom-pin {
+            position: relative;
+            height: 10px;
+            aspect-ratio: 1;
+        }
+
+        custom-pin-editor {
+            position: relative;
+            height: 25px;
+            aspect-ratio: 1;
+            margin: 15px;
+        }
+
+        custom-card custom-pin:hover {
+            filter: var(--hover-pin-filter);
+            transform: scale(1.2);
+        }
+
+        custom-pin-editor:hover {
+            filter: var(--selected-pin-filter);
+            transform: var(--selected-pin-transform);
+        }
+
+        custom-pin::before {
+            height: 8px;
+            background-color: white;
+        }
+
+        custom-pin-editor::before {
+            height: 25px;
+            border: 2px solid rgb(126, 0, 0);
+        }
+
+        custom-pin::before, custom-pin-editor::before {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            display: inline-block;
+            background-color: rgb(196, 36, 36);
+            border-radius: 50%;
+            aspect-ratio: 1;
+            content: "";
+        }
+
+        custom-pin::after {
+            height: 5px;
+        }
+
+        custom-pin-editor::after {
+            height: 19px;
+        }
+
+        custom-pin::after, custom-pin-editor::after {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            display: inline-block;
+            background-color: red;
+            filter: var(--low-shadow-filter);
+            border-radius: 50%;
+            aspect-ratio: 1;
+            content: "";
+        }
+
+        custom-pin-editor.leftPin {
+            margin-left: 5px;
+        }
+
+        custom-pin-editor.rightPin {
+            margin-right: 10px;
+        }
+
+        custom-pin::before, custom-pin::after {
+            position: absolute;
+            z-index: 1;
+        }
+    </style>
+    <style id="style-sectionControls">
+        custom-section-controls {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 2px;
+
+            > button {
+                width: 20px;
+                aspect-ratio: 1;
+                padding: 0;
+
+                > svg {
+                    max-width: 100%;
+                    max-height: 100%;
+                    fill: #444;
+                }
+            }
+
+            > button:disabled > svg {
+                fill: #999;
+            }
+            
+            > .upInput > svg {
+                rotate: -90deg;
+            }
+
+            > .downInput > svg {
+                rotate: 90deg;
+            }
+        }
+    </style>
+    <style id="style-pin-strings">
+        custom-pin-string, custom-pin-string-preview {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            
+            > svg {
+                z-index: 10;
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                filter: var(--low-shadow-filter);
+                pointer-events: none;
+
+                * {
+                    pointer-events: all;
+                }
+            }
+        }
+
+        custom-pin-string > svg {
+            > line:hover {
+                filter: var(--hover-pin-filter);
+            }
+
+            > line:hover + line {
+                filter: var(--hover-pin-filter);
+            }
+
+            > line:hover + line + line {
+                filter: var(--hover-pin-filter);
+            }
+        }
+    </style>
+    <style id="style-grouping">
+        custom-grouping, custom-grouping-preview, custom-grouping-template {
+            display: block;
+            position: relative;
+
+            > .groupingTextTop, > .groupingTextBottom {
+                position: absolute;
+                font-family: sans-serif;
+                font-weight: bold;
+            }
+            
+            > .groupingTextTop {
+                top: 0;
+                left: 20px;
+            }
+
+            > .groupingTextBottom {
+                bottom: 0;
+                right: 20px;
+            }
+
+            > svg {
+                z-index: 5;
+
+                > line {
+                    pointer-events: all;
+                }
+
+                > .line {
+                    stroke-dasharray: 8px 4px;
+                    shape-rendering: crispEdges;
+                }
+            }
+        }
+
+        custom-grouping, custom-grouping-preview {
+            position: absolute;
+            transform: translate(-50%, -50%);
+
+            div, .line {
+                filter: drop-shadow(0 0 1px black);
+            }
+        }
+
+        custom-grouping {
+            opacity: 85%;
+
+            .line {
+                pointer-events: stroke;
+            }
+
+            .line.hover {
+                filter: var(--hover-grouping-filter) drop-shadow(0 0 1px black);
+            }
+
+            line:nth-child(8), line:nth-child(9), line:nth-child(12), line:nth-child(13) {
+                cursor: ns-resize;
+            }
+
+            line:nth-child(10), line:nth-child(11) {
+                cursor: ew-resize;
+            }
+
+            circle {
+                cursor: move;
+            }
+
+            circle:hover {
+                filter: var(--hover-grouping-filter) drop-shadow(0 0 1px black);
+            }
+        }
+
+        custom-grouping *::selection, custom-grouping-preview *::selection, custom-grouping-template *::selection {
+            background-color: #00000000;
+        }
+
+        custom-grouping-preview {
+            position: absolute;
+            z-index: 30;
+        }
+
+        custom-grouping-template {
+            width: 80%;
+            height: 80%;
+        }
+    </style>
+    <style id="style-multiSelect">
+        #multiSelectBox {
+            position: absolute;
+            background-color: #77bbff50;
+            z-index: 40;
+        }
+    </style>
+</head>
+<body>
+    <main id="main" onmousedown="handlePanStart()" onmouseup="handlePanEnd()" onmouseleave="handlePanEnd()" onmousemove="handlePan()" onwheel="handleZoom()">
+        <custom-pin-string-preview hidden></custom-pin-string-preview>
+    </main>
+    <div id="controls">
+        <button id="trash">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="#555555"><path d="m376-300 104-104 104 104 56-56-104-104 104-104-56-56-104 104-104-104-56 56 104 104-104 104 56 56Zm-96 180q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520Zm-400 0v520-520Z"/></svg>
+        </button>
+        <button onclick="recenter()">Recentre</button>
+        <button onclick="clearWithConfirm()">Clear</button>
+        <button onclick="saveLocalWithConfirm()">Save</button>
+        <button onclick="loadLocalWithConfirm()">Load</button>
+        <button onclick="loadFile()">Import</button>
+        <button onclick="saveFile()">Export</button>
+    </div>
+    <aside id="cardStore">
+        <button id="cardStoreToggle" onclick="toggleCardStore()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="grey"><path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z"/></svg>
+        </button>
+        <div class="storeCard" id="storeBlankCard">
+            <custom-card-template size="medium"></custom-card-template>
+        </div>
+        <div class="storeCard" id="storePersonCard">
+            <custom-card-template size="medium"></custom-card-template>
+        </div>
+        <div class="storeCard" id="storeGrouping">
+            <custom-grouping-template></custom-grouping-template>
+        </div>
+    </aside>
+    <aside id="cardEditor">
+        <div id="cardSizeEditor">
+            <input type="radio" name="cardSize" value="tiny" oninput="setCardSize(this.value)">
+            <input type="radio" name="cardSize" value="small" oninput="setCardSize(this.value)">
+            <input type="radio" name="cardSize" value="medium" oninput="setCardSize(this.value)">
+            <input type="radio" name="cardSize" value="large" oninput="setCardSize(this.value)">
+            <input type="radio" name="cardSize" value="huge" oninput="setCardSize(this.value)">
+            <input type="radio" name="cardSize" value="obscene" oninput="setCardSize(this.value)">
+        </div>
+        <ol></ol>
+        <div id="cardSectionEditor">
+            <button onclick="addTextSection()">Add Text</button>
+            <button onclick="addImageSection()">Add Image</button>
+        </div>
+    </aside>
+    <aside id="groupingEditor">
+        <div>
+            <input type="text" placeholder="Top Text" oninput="setGroupingTopText(this.value)">
+            <input type="text" placeholder="Bottom Text" oninput="setGroupingBottomText(this.value)">
+            <input type="color" oninput="setGroupingColor(this.value)">
+        </div>
+    </aside>
+    <template id="sectionControlsTemplate">
+        <button class="upInput">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z"/></svg>
+        </button>
+        <button class="deleteInput">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="m376-300 104-104 104 104 56-56-104-104 104-104-56-56-104 104-104-104-56 56 104 104-104 104 56 56Zm-96 180q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520Zm-400 0v520-520Z"/></svg>
+        </button>
+        <button class="downInput">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="m321-80-71-71 329-329-329-329 71-71 400 400L321-80Z"/></svg>
+        </button>
+    </template>
+    <template class="section" id="textSectionTemplate">
+        <custom-pin class="leftPin"></custom-pin>
+        <div></div>
+        <custom-pin class="rightPin"></custom-pin>
+    </template>
+    <template class="section" id="imageSectionTemplate">
+        <custom-pin class="leftPin"></custom-pin>
+        <img draggable="false" (dragstart)="false;">
+        <custom-pin class="rightPin"></custom-pin>
+    </template>
+    <template class="sectionEditor" id="textSectionEditorTemplate">
+        <custom-pin-editor class="leftPin"></custom-pin-editor>
+        <div>
+            <textarea class="textInput"></textarea>
+            <div class="textControls">
+                <input class="fontColorInput" name="fontColor" type="color">
+                <input class="fontSizeInput" name="fontSize" type="number">
+                <div class="textStyleControls">
+                    <input class="boldInput" name="bold" type="checkbox">
+                    <input class="italicInput" name="italic" type="checkbox">
+                    <input class="underlineInput" name="underline" type="checkbox">
+                </div>
+                <div class="textAlignControls">
+                    <input class="textAlignLeftInput" type="radio" value="left">
+                    <input class="textAlignCenterInput" type="radio" value="center">
+                    <input class="textAlignRightInput" type="radio" value="right">
+                </div>
+            </div>
+        </div>
+        <custom-pin-editor class="rightPin"></custom-pin-editor>
+        <custom-section-controls></custom-section-controls>
+    </template>
+    <template class="sectionEditor" id="imageSectionEditorTemplate">
+        <custom-pin-editor class="leftPin"></custom-pin-editor>
+        <div>
+            <div>
+                <img class="imagePreview">
+            </div>
+            <form class="uploadControls">
+                <input class="uploadInput" type="file" accept="image/*">
+				<input class="pasteInput" type="button" value="Paste"/>
+                <input class="resetInput" type="reset">
+            </form>
+        </div>
+        <custom-pin-editor class="rightPin"></custom-pin-editor>
+        <custom-section-controls></custom-section-controls>
+    </template>
+    <template class="grouping" id="groupingTemplate">
+        <div class="groupingTextTop"></div>
+        <div class="groupingTextBottom"></div>
+        <svg>
+            <line class="groupingTop line"></line>
+            <line class="groupingTopSecond line"></line>
+            <line class="groupingLeft line"></line>
+            <line class="groupingRight line"></line>
+            <line class="groupingBottom line"></line>
+            <line class="groupingBottomSecond line"></line>
+            <circle r="0"></circle>
+        </svg>
+    </template>
+    <canvas id="imageResizer" hidden></canvas>
+    <div id="multiSelectBox" hidden></div>
+</body>
+<script id="script-pageNavigation">
+    var pageSettings = {
+        filename: "file",
+        zoom: 1,
+        panning: false,
+        pan: {x: 0, y: 0},
+    };
+
+    const main = document.getElementById("main");
+
+    function handlePanStart() {
+        if (event.buttons & ~4 && ((event.buttons & ~1) || !event.shiftKey)) return;
+        pageSettings.panning = true;
+    }
+
+    function handlePanEnd() {
+        pageSettings.panning = false;
+    }
+
+    function handlePan(panning=pageSettings.panning) {
+        if (!panning) return;
+
+        if (event.type !== "load") {
+            pageSettings.pan.x += event.movementX;
+            pageSettings.pan.y += event.movementY;
+        }
+
+        main.style.backgroundPositionX = pageSettings.pan.x + "px";
+        main.style.backgroundPositionY = pageSettings.pan.y + "px";
+
+        updateCards();
+        updateGroupings();
+    }
+
+    function handleZoom() {
+        function zoomAroundCursor(mouseX, mouseY, panX, panY, zoom, zoomIn) {
+            const zoomStep = 1.1;         // zoom multiplier per step
+            const minZoom = 0.25;
+            const maxZoom = 8;
+
+            const newZoom = Math.min(
+                maxZoom,
+                Math.max(minZoom, zoom * (zoomIn ? zoomStep : 1 / zoomStep))
+            );
+
+            // Adjust pan so the cursor stays fixed relative to the image
+            const newPanX = mouseX - (mouseX - panX) * (newZoom / zoom);
+            const newPanY = mouseY - (mouseY - panY) * (newZoom / zoom);
+
+            return { panX: newPanX, panY: newPanY, zoom: newZoom };
+        }
+        const res = zoomAroundCursor(event.clientX, event.clientY, pageSettings.pan.x, pageSettings.pan.y, pageSettings.zoom, event.deltaY < 0);
+
+        main.style.backgroundPosition = `${res.panX}px ${res.panY}px`;
+        main.style.backgroundSize = `${res.zoom * 50}% auto`;
+
+        pageSettings.pan.x = res.panX;
+        pageSettings.pan.y = res.panY;
+        pageSettings.zoom = res.zoom;
+        
+        updateCards();
+        updateGroupings();
+        [...document.getElementsByTagName("custom-card-preview")].forEach((el) => {el.followMouse()});
+        [...document.getElementsByTagName("custom-grouping-preview")].forEach((el) => {el.followMouse()});
+    }
+
+    function recenter() {
+        pageSettings.pan.x = 0;
+        pageSettings.pan.y = 0;
+        pageSettings.zoom = 1;
+        handlePan(true);
+        handleZoom();
+    }
+</script>
+<script id="script-cardStore">
+    var cardStoreSettings = {
+        expanded: true,
+    };
+
+    const cardStore = document.getElementById("cardStore");
+    const cardStoreToggle = document.getElementById("cardStoreToggle");
+
+    function toggleCardStore() {
+        if (cardStoreSettings.expanded) {
+            cardStore.style.right = -cardStore.getBoundingClientRect().width + "px";
+            cardStoreToggle.children[0].style.rotate = "180deg";
+            cardStoreSettings.expanded = false;
+        } else {
+            cardStore.style.right = 0;
+            cardStoreToggle.children[0].style.rotate = "0deg";
+            cardStoreSettings.expanded = true;
+        }
+    }
+
+    window.addEventListener("load", () => {
+        const blankCard = document.getElementById("storeBlankCard").children[0];
+        
+        const blankCardName = new TextSection();
+        blankCard.addSection(blankCardName);
+        blankCardName.setPinState("left", true);
+
+        const personCard = document.getElementById("storePersonCard").children[0];
+        
+        const personCardName = new TextSection();
+        personCard.addSection(personCardName);
+        personCardName.setBold(true, ()=>{});
+        personCard.addSection(new ImageSection());
+        personCardName.setPinState("left", true);
+        personCardName.setPinState("right", true);
+
+        const personCardCaption = new TextSection();
+        personCard.addSection(personCardCaption);
+        personCardCaption.setFontSize(8, ()=>{});
+        personCardCaption.setItalic(true, ()=>{});
+
+        const grouping = document.getElementById("storeGrouping").children[0];
+        grouping.setTopText("Grouping");
+    });
+</script>
+<script id="script-pinStrings">
+    var pinStringSettings = {
+        stringingPin: null,
+        hoverPin: null,
+        stringing: false,
+    };
+
+    const pinStringPreview = document.getElementsByTagName("custom-pin-string-preview")[0];
+
+    class PinStringBase extends HTMLElement {
+        svgElement = null;
+        lineElementA = null;
+        lineElementB = null;
+
+        connectedCallback() {
+            this.svgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            this.append(this.svgElement);
+
+            this.lineElementA = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            this.svgElement.append(this.lineElementA);
+
+            this.lineElementB = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            this.svgElement.append(this.lineElementB);
+        }
+
+        draw(x1, y1, x2, y2, opacity="100%", baseColor="#550000", color="#ff2222") {
+            this.lineElementA.style.opacity = opacity;
+            this.lineElementB.style.opacity = opacity;
+
+            this.lineElementA.setAttribute("x1", x1);
+            this.lineElementA.setAttribute("y1", y1);
+            this.lineElementA.setAttribute("x2", x2);
+            this.lineElementA.setAttribute("y2", y2);
+            this.lineElementA.setAttribute("stroke", baseColor);
+            this.lineElementA.setAttribute("stroke-width", 6 * pageSettings.zoom);
+
+            this.lineElementB.setAttribute("x1", x1);
+            this.lineElementB.setAttribute("y1", y1);
+            this.lineElementB.setAttribute("x2", x2);
+            this.lineElementB.setAttribute("y2", y2);
+            this.lineElementB.setAttribute("stroke", color);
+            this.lineElementB.setAttribute("stroke-width", 4 * pageSettings.zoom);
+            this.lineElementB.setAttribute("stroke-dasharray", (4 * pageSettings.zoom) + " " + 1 * pageSettings.zoom);
+        }
+    }
+
+    class PinString extends PinStringBase {
+        pinASection = null;
+        pinBSection = null;
+        pinAName = null;
+        pinBName = null;
+        color = "red";
+        lineElementC = null;
+
+        constructor(pinA, pinB, color) {
+            super();
+            this.pinASection = pinA.section;
+            this.pinBSection = pinB.section;
+            this.pinAName = pinA.name;
+            this.pinBName = pinB.name;
+            this.color = color;
+            this.pinASection.pins[this.pinAName].strings.push(this);
+            this.pinBSection.pins[this.pinBName].strings.push(this);
+        }
+
+        connectedCallback() {
+            super.connectedCallback();
+
+            this.lineElementC = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            this.svgElement.prepend(this.lineElementC);
+
+            this.lineElementA.addEventListener("click", this.advanceColor);
+            this.lineElementB.addEventListener("click", this.advanceColor);
+            this.lineElementC.addEventListener("click", this.advanceColor);
+			
+			this.lineElementA.addEventListener("dblclick", this.erase);
+			this.lineElementB.addEventListener("dblclick", this.erase);
+			this.lineElementC.addEventListener("dblclick", this.erase);
+			
+			
+            this.redraw();
+        }
+
+        advanceColor = () => {
+			var colors = ["red", "green","blue", "cyan", "orange"];
+			var i = colors.indexOf(this.color);
+			if (i < 0)
+				i = 0;
+			else
+				i = (i + 1) % colors.length;
+			
+			
+			this.color = colors[i];
+		
+            this.redraw();
+        }
+		
+		erase = () => {
+			let pin = this;
+			if (pin)
+				pin.remove();
+		}
+
+        redraw() {
+            const pinARect = this.pinASection.pins[this.pinAName].element.getBoundingClientRect();
+            const pinBRect = this.pinBSection.pins[this.pinBName].element.getBoundingClientRect();
+
+            const x1 = pinARect.x + pinARect.width / 2;
+            const y1 = pinARect.y + pinARect.height / 2;
+            const x2 = pinBRect.x + pinBRect.width / 2;
+            const y2 = pinBRect.y + pinBRect.height / 2;
+
+            const baseColor = {red: "#550000", green: "#003300", blue: "#000000", cyan: "#000000", orange: "#000000"}[this.color];
+            const color = {red: "#ff2222", green: "#007700", blue: "#5533ff", cyan: "#00FFFF", orange: "#FFFF00"}[this.color];
+            
+            // Invisible pin string hit box
+            this.lineElementC.setAttribute("x1", x1);
+            this.lineElementC.setAttribute("y1", y1);
+            this.lineElementC.setAttribute("x2", x2);
+            this.lineElementC.setAttribute("y2", y2);
+            this.lineElementC.setAttribute("stroke", "#ffffff00");
+            this.lineElementC.setAttribute("stroke-width", 20 * pageSettings.zoom);
+
+            this.draw(x1, y1, x2, y2, "100%", baseColor, color);
+        }
+        
+        remove() {
+            const pinAIndex = this.pinASection.pins[this.pinAName].strings.findIndex(x => x === this);
+            const pinBIndex = this.pinBSection.pins[this.pinBName].strings.findIndex(x => x === this);
+            
+            this.pinASection.pins[this.pinAName].strings = this.pinASection.pins[this.pinAName].strings.slice(0, pinAIndex).concat(this.pinASection.pins[this.pinAName].strings.slice(pinAIndex + 1));
+            this.pinBSection.pins[this.pinBName].strings = this.pinBSection.pins[this.pinBName].strings.slice(0, pinBIndex).concat(this.pinBSection.pins[this.pinBName].strings.slice(pinBIndex + 1));
+            
+            super.remove();
+        }
+    }
+    customElements.define("custom-pin-string", PinString);
+
+    class PinStringPreview extends PinStringBase {
+        show() {
+            this.hidden = false;
+            window.addEventListener("mousemove", this.redraw);
+            this.redraw();
+        }
+
+        hide() {
+            this.hidden = true;
+            window.removeEventListener("mousemove", this.redraw);
+        }
+
+        redraw = () => {
+            if (!pinStringSettings.stringing) return;
+            if (pinStringSettings.stringingPin === null) return;
+
+            const pinARect = pinStringSettings.stringingPin.getBoundingClientRect();
+
+            const x1 = pinARect.x + pinARect.width / 2;
+            const y1 = pinARect.y + pinARect.height / 2;
+
+            if (pinStringSettings.hoverPin === null) {
+                this.draw(x1, y1, event.clientX, event.clientY, "70%", "#333300", "#dd5500");
+            } else {
+                const pinBRect = pinStringSettings.hoverPin.getBoundingClientRect();
+            
+                const x2 = pinBRect.x + pinBRect.width / 2;
+                const y2 = pinBRect.y + pinBRect.height / 2;
+                
+                const connection = pinStringSettings.stringingPin.getConnection(pinStringSettings.hoverPin);
+                if (connection === null) {
+                    this.draw(x1, y1, x2, y2, "100%", "#884400", "#ff5500");
+                } else {
+                    this.draw(x1, y1, x2, y2, "100%", "#dd0000", "#ff2222");
+                }
+            }
+        }
+    }
+    customElements.define("custom-pin-string-preview", PinStringPreview);
+
+    function handlePinClick(pin) {
+        if (pinStringSettings.stringing) {
+            if (pin === pinStringSettings.stringingPin) {
+                cancelPinString();
+            } else if (pin.section.parentElement === pinStringSettings.stringingPin.section.parentElement) {
+                startPinString(pin);
+            } else {
+                endPinString(pin);
+            }
+        } else {
+            startPinString(pin);
+        }
+    }
+
+    function handlePinMouseEnter(pin) {
+        if (!pinStringSettings.stringing) return;
+        pinStringSettings.hoverPin = pin;
+    }
+
+    function handlePinMouseLeave(pin) {
+        pinStringSettings.hoverPin = null;
+    }
+
+    function startPinString(pin) {
+        pinStringSettings.stringingPin = pin;
+        pinStringSettings.stringing = true;
+        
+        pinStringPreview.show();
+        window.addEventListener("contextmenu", cancelPinString);
+    }
+
+    function endPinString(pin) {
+        window.removeEventListener("contextmenu", cancelPinString);
+
+        const existingConnection = pinStringSettings.stringingPin.getConnection(pin);
+        if (existingConnection === null) {
+            createPinString(pinStringSettings.stringingPin, pin);
+        } else {
+            existingConnection.remove();
+        }
+
+        pinStringPreview.hide();
+        pinStringSettings.stringingPin = null;
+        pinStringSettings.stringing = false;
+    }
+
+    function cancelPinString() {
+        if (event !== undefined) event.preventDefault();
+        window.removeEventListener("contextmenu", cancelPinString);
+
+        pinStringPreview.hide();
+        pinStringSettings.stringingPin = null;
+        pinStringSettings.stringing = false;
+    }
+
+    function createPinString(startPin, endPin, color="red") {
+        const newString = new PinString(startPin, endPin, color);
+        main.prepend(newString);
+    }
+</script>
+<script id="script-cards">
+    var cardSettings = {activeCards: []};
+
+    class CardBase extends HTMLElement {
+        sizes = ["tiny", "small", "medium", "large", "huge", "obscene"];
+        size = "medium";
+
+        constructor(size, sections=[]) {
+            super();
+            this.size = size;
+            this.sections = sections.map(section => section.clone());
+            this.draggable = false;
+            this.ondragstart = () => {return false};
+        }
+
+        connectedCallback() {
+            this.updateContent();
+        }
+
+        updateContent() {
+            this.sizes.forEach(x => this.classList.remove(x));
+            this.classList.add(this.size);
+            const first = this.children[0];
+            [...this.children].forEach(child => child.remove());
+            for (let section of this.sections) this.append(section);
+            for (let section of this.sections) section.updatePinStrings();
+            cancelPinString();
+        }
+
+        setSize(newSize) {
+            if (this.sizes.filter(x => x === newSize).length === 0) return;
+            this.size = newSize;
+            this.updateContent();
+        }
+    
+        addSection(section) {
+            this.sections.push(section);
+            this.updateContent();
+        }
+        
+        remove() {
+            this.sections.forEach(section => section.removePinStrings());
+            super.remove();
+        }
+    }
+
+    class CardPreview extends CardBase {        
+        constructor(size, cursorOffsetX, cursorOffsetY, sections=[]) {
+            super(size, sections);
+            this.fallbackX = null;
+            this.fallbackY = null;
+            this.cursorOffsetX = cursorOffsetX;
+            this.cursorOffsetY = cursorOffsetY;
+        }
+
+        connectedCallback() {
+            window.addEventListener("mousemove", this.followMouse);
+            window.addEventListener("mouseup", this.place);
+            
+            this.updateContent();
+        }
+
+        disconnectedCallback() {
+            window.removeEventListener("mousemove", this.followMouse);
+            window.removeEventListener("mouseup", this.place);
+        }
+
+        attributeChangedCallback(name, oldValue, newValue) {
+            switch (name) {
+                default:
+                    alert("Unknown Card Property: " + name);
+            }
+        }
+
+        followMouse = () => {
+            this.style.transform = `translate(-50%, -50%) scale(${1.1 * pageSettings.zoom})`;
+
+            moveElementToMouse(this, -this.cursorOffsetX, -this.cursorOffsetY);
+            this.sections.forEach(section => section.updatePinStrings());
+
+            const elementsUnder = document.elementsFromPoint(event.clientX, event.clientY);
+
+            if (elementsUnder.filter(x => x.id === "trash").length > 0) {
+                this.style.filter = "var(--delete-filter)";
+            } else if (elementsUnder.filter(x => x.tagName.toUpperCase() === "ASIDE").length === 0) {
+                this.style.filter = "";
+            } else {
+                this.style.filter = "var(--reject-filter)";
+            }
+        }
+
+        place = () => {
+            this.style.filter = "";
+            const newCard = new Card(this.size, this.sections);
+            this.remove();
+
+            const elementsUnder = document.elementsFromPoint(event.clientX, event.clientY);
+            
+            if (elementsUnder.filter(x => x.id === "trash").length > 0) {
+                // Deleted
+                if (this.fallbackX === null || this.fallbackY === null) return;
+
+                newCard.x = this.fallbackX;
+                newCard.y = this.fallbackY;
+
+                deleteCard(newCard);
+
+                return;
+            } else if (elementsUnder.filter(x => x.tagName.toUpperCase() === "ASIDE").length === 0) {
+                // Placed
+                // Transform mouse coords to board coords
+                newCard.x = (event.clientX - this.cursorOffsetX - pageSettings.pan.x) / pageSettings.zoom;
+                newCard.y = (event.clientY - this.cursorOffsetY - pageSettings.pan.y - this.getBoundingClientRect().height) / pageSettings.zoom;
+            } else {
+                // Rejected
+                if (this.fallbackX === null || this.fallbackY === null) return;
+                
+                newCard.x = this.fallbackX;
+                newCard.y = this.fallbackY;
+            }
+
+            main.append(newCard);
+        }
+    }
+    customElements.define("custom-card-preview", CardPreview);
+
+    class CardTemplate extends CardBase {
+        static observedAttributes = ["size"];
+
+        connectedCallback() {
+            this.addEventListener("mousedown", () => {
+                if (event.buttons & ~1) return;
+                const bounds = this.getBoundingClientRect();
+                const cursorOffsetX = event.clientX - (bounds.x + bounds.width / 2);
+                const cursorOffsetY = event.clientY - (bounds.y + bounds.height / 2);
+                const newCard = new CardPreview(this.size, cursorOffsetX, cursorOffsetY, [...this.sections].map(section => section.clone()));
+                document.body.append(newCard);
+                newCard.followMouse();
+            });
+
+            this.updateContent();
+        }
+
+        attributeChangedCallback(name, oldValue, newValue) {
+            switch (name) {
+                case "size":
+                    this.size = newValue;
+                    this.updateContent();
+                    break;
+                default:
+                    alert("Unknown Card Property: " + name);
+            }
+        }
+    }
+    customElements.define("custom-card-template", CardTemplate);
+
+    class Card extends CardBase {
+        static observedAttributes = ["x", "y"];
+
+        constructor(size, sections=[]) {
+            super(size, sections);
+            this.x = 0;
+            this.y = 0;
+        }
+
+        connectedCallback() {
+            this.addEventListener("mousedown", this.handleMousedown);
+
+            cardSettings.activeCards.push(this);
+
+            if (this.rotate !== null && this.rotate !== undefined) {
+                this.style.rotate = this.rotate;
+                this.rotate = null;
+            } else {
+                const rotate = [-5, 0, 0, 0, 0, 0, 0, 5][Math.round(Math.random() * 7)];
+                this.style.rotate = rotate + "deg";
+            }
+
+            this.updatePosition();
+            this.updateContent();
+        }
+
+        disconnectedCallback() {
+            const index = cardSettings.activeCards.findIndex(x => x === this);
+            cardSettings.activeCards = cardSettings.activeCards.slice(0, index).concat(cardSettings.activeCards.slice(index + 1));
+
+            this.removeEventListener("mousedown", this.handleMousedown);
+            this.removeEventListener("contextmenu", this.handleContextMenu);
+        }
+
+        attributeChangedCallback(name, oldValue, newValue) {
+            switch (name) {
+                case "x":
+                    this.x = parseInt(newValue);
+                    break;
+                case "y":
+                    this.y = parseInt(newValue);
+                    break;
+                default:
+                    alert("Unknown Card Property: " + name);
+            }
+        }
+
+        handleMousedown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+            if (cardEditorSettings.card !== this) closeCardEditor();
+
+            const mouseupHandler = () => {
+                window.removeEventListener("mousemove", mousemoveHandler);
+                editCard(this);
+            };
+
+            const mousemoveHandler = () => {
+                window.removeEventListener("mouseup", mouseupHandler);
+                this.becomePicked(this);
+                closeCardEditor();
+            };
+
+            window.addEventListener("mouseup", mouseupHandler, {once: true});
+            window.addEventListener("mousemove", mousemoveHandler, {once: true});
+        }
+
+        becomePicked = () => {
+            const bounds = this.getBoundingClientRect();
+            const cursorOffsetX = event.clientX - (bounds.x + bounds.width / 2);
+            const cursorOffsetY = event.clientY - (bounds.y + bounds.height / 2);
+            const pickedCard = new CardPreview(this.size, cursorOffsetX, cursorOffsetY, this.sections);
+            main.append(pickedCard);
+            pickedCard.fallbackX = this.x;
+            pickedCard.fallbackY = this.y;
+            pickedCard.followMouse();
+            this.remove();
+        }
+
+        updatePosition() {
+            const screenCoords = mainToScreenCoords(this.x, this.y);
+            this.style.left = screenCoords.x + "px";
+            this.style.top = screenCoords.y + "px";
+            this.style.transform = "translate(-50%, -50%) scale(" + pageSettings.zoom + ")";
+
+            this.sections.forEach(section => section.updatePinStrings());
+        }
+
+        moveSectionUp(section) {
+            const index = this.sections.findIndex(x => x === section);
+            if (index === 0) return;
+            this.sections[index] = this.sections[index - 1];
+            this.sections[index - 1] = section;
+            this.updateContent();
+            openCardEditor(this);
+        }
+        
+        moveSectionDown(section) {
+            const index = this.sections.findIndex(x => x === section);
+            if (index === this.sections.length - 1) return;
+            this.sections[index] = this.sections[index + 1];
+            this.sections[index + 1] = section;
+            this.updateContent();
+            openCardEditor(this);
+        }
+
+        deleteSection(section) {
+            const index = this.sections.findIndex(x => x === section);
+            this.sections = this.sections.slice(0, index).concat(this.sections.slice(index + 1));
+            this.updateContent();
+            openCardEditor(this);
+        }
+
+        sectionIsFirst(section) {return this.sections[0] === section;}
+
+        sectionIsLast(section) {return this.sections[this.sections.length - 1] === section;}
+
+        save() {
+            return {
+                size: this.size,
+                x: this.x,
+                y: this.y,
+                rotate: this.style.rotate,
+                sections: this.sections.map(section => section.save()),
+            }
+        }
+
+        static load(cardObject) {
+            const card = new Card(cardObject.size);
+            card.x = cardObject.x;
+            card.y = cardObject.y;
+            card.rotate = cardObject.rotate;
+            cardObject.sections.forEach(sectionObject => card.sections.push(Section.load(sectionObject)));
+            return card;
+        }
+    }
+    customElements.define("custom-card", Card);
+
+    function updateCards() {cardSettings.activeCards.forEach(card => {card.updatePosition()})}
+
+    function editCard(card) {openCardEditor(card)}
+
+    function deleteCard(card) {card.remove()}
+
+    function loadPinStrings(cardsObject) {
+        const reinstatePinString = (cardIndexA, sectionIndexA, nameA, string) => {
+            const cardIndexB = string.cardIndex;
+            const sectionIndexB = string.sectionIndex;
+            const nameB = string.name;
+            const color = string.color;
+
+            const pinA = cardSettings.activeCards[cardIndexA].sections[sectionIndexA].pins[nameA].element;
+            const pinB = cardSettings.activeCards[cardIndexB].sections[sectionIndexB].pins[nameB].element;
+
+            if (pinA.getConnection(pinB) === null) createPinString(pinA, pinB, color);
+        };
+
+        cardsObject.forEach((card, cardIndex) => {
+            card.sections.forEach((section, sectionIndex) => {
+                section.base.pins.left.strings.forEach(string => reinstatePinString(cardIndex, sectionIndex, "left", string));
+                section.base.pins.right.strings.forEach(string => reinstatePinString(cardIndex, sectionIndex, "right", string));
+            });
+        });
+    }
+</script>
+<script id="script-sections">
+    class Section extends HTMLElement {
+        pins = {
+            left: {
+                element: null,
+                state: false,
+                strings: [],
+            },
+            right: {
+                element: null,
+                state: false,
+                strings: [],
+            },
+        };
+        sectionControls = null;
+        originalStrings = null;
+
+        connectedCallback(template) {
+            this.classList.add(template.classList);
+            this.append(template.content.cloneNode(true));
+
+            this.pins.left.element = this.getElementsByClassName("leftPin")[0];
+            this.pins.right.element = this.getElementsByClassName("rightPin")[0];
+
+            this.pins.left.element.setSection(this, "left");
+            this.pins.right.element.setSection(this, "right");
+
+            if (this.originalStrings !== null) {
+                this.reinstatePinStrings();
+                this.originalStrings = null;
+            }
+            this.updatePins();
+        }
+
+        clone(clone) {
+            clone.originalStrings = {left: [], right: []};
+            for (let pin in this.pins) {
+                clone.pins[pin].state = this.pins[pin].state;
+                clone.originalStrings[pin] = this.pins[pin].strings.map(string => {
+                    return {
+                        sectionA: string.pinASection === this ? clone : string.pinASection,
+                        sectionB: string.pinBSection === this ? clone : string.pinBSection,
+                        nameA: string.pinAName,
+                        nameB: string.pinBName,
+                        color: string.color,
+                    }
+                });
+            };
+            return clone;
+        }
+
+        reinstatePinStrings() {
+            for (let pin in this.originalStrings) {
+                this.originalStrings[pin].forEach(string => createPinString(
+                    string.sectionA.pins[string.nameA].element,
+                    string.sectionB.pins[string.nameB].element,
+                    string.color,
+                ));
+            }
+        }
+
+        updatePinStrings() {for (let pin in this.pins) this.pins[pin].strings.forEach(string => string.redraw())}
+
+        setPinState(pinName, newPinState) {
+            this.pins[pinName].state = !this.pins[pinName].state;
+            this.updatePins();
+        }
+
+        getPinState(pinName) {return this.pins[pinName].state;}
+
+        updatePins() {
+            this.pins.left.state ? this.children[1].classList.add("leftPinned") : this.children[1].classList.remove("leftPinned");
+            this.pins.right.state ? this.children[1].classList.add("rightPinned") : this.children[1].classList.remove("rightPinned");
+            for (let pin in this.pins) this.pins[pin].element.update();
+        }
+
+        removePinStrings() {for (let pin in this.pins) if (this.pins[pin].element !== null) this.pins[pin].element.removePinStrings()}
+
+        moveUp = () => {this.parentElement.moveSectionUp(this)}
+
+        moveDown = () => {this.parentElement.moveSectionDown(this)}
+
+        delete = () => {this.parentElement.deleteSection(this)}
+
+        isFirst = () => {return this.parentElement.sectionIsFirst(this)}
+
+        isLast = () => {return this.parentElement.sectionIsLast(this)}
+
+        updateContent(refreshParent) {
+            if (refreshParent) this.parentElement.updateContent();
+        };
+
+        save() {
+            const sectionToCardIndex = (section) => {
+                return cardSettings.activeCards.findIndex(x => x === section.parentElement);
+            }
+
+            const sectionToSectionIndex = (section) => {
+                return section.parentElement.sections.findIndex(x => x === section);
+            }
+
+            return {
+                pins: {
+                    left: {
+                        state: this.pins.left.state,
+                        strings: this.pins.left.strings.map(string => {
+                            return {
+                                cardIndex: sectionToCardIndex(string.pinASection === this ? string.pinBSection : string.pinASection),
+                                sectionIndex: sectionToSectionIndex(string.pinASection === this ? string.pinBSection : string.pinASection),
+                                name: string.pinASection === this ? string.pinBName : string.pinAName,
+                                color: string.color,
+                            };
+                        })
+                    },
+                    right: {
+                        state: this.pins.right.state,
+                        strings: this.pins.right.strings.map(string => {
+                            return {
+                                cardIndex: sectionToCardIndex(string.pinASection === this ? string.pinBSection : string.pinASection),
+                                sectionIndex: sectionToSectionIndex(string.pinASection === this ? string.pinBSection : string.pinASection),
+                                name: string.pinASection === this ? string.pinBName : string.pinAName,
+                                color: string.color,
+                            };
+                        })
+                    }
+                },
+            }
+        }
+
+        static load(sectionObject) {
+            let section;
+            switch (sectionObject.type) {
+                case "text":
+                    section = TextSection.load(sectionObject);
+                    break;
+                case "image":
+                    section = ImageSection.load(sectionObject);
+                    break;
+            }
+            section.pins.left.state = sectionObject.base.pins.left.state;
+            section.pins.right.state = sectionObject.base.pins.right.state;
+            return section;
+        }
+    }
+
+    class TextSection extends Section {
+        fontColor = "black";
+        fontSize = {
+            current: 10,
+            min: 1,
+            max: 72
+        };
+        bold = false;
+        italic = false;
+        underline = false;
+        textAlign = "center";
+        text = "";
+
+        constructor() {
+            super();
+        }
+
+        connectedCallback() {
+            super.connectedCallback(document.getElementById("textSectionTemplate"));
+            this.textElement = this.getElementsByTagName("div")[0];
+            this.updateContent();
+        }
+
+        disconnectedCallback() {
+            [...this.children].forEach(el => el.remove());
+        }
+
+        clone() {
+            const clone = this.cloneNode(false);
+            clone.text = this.text;
+            clone.fontColor = this.fontColor;
+            clone.fontSize.current = this.fontSize.current;
+            clone.bold = this.bold;
+            clone.italic = this.italic;
+            clone.underline = this.underline;
+            clone.textAlign = this.textAlign;
+            return super.clone(clone);
+        }
+
+        createEditor() {
+            return new TextSectionEditor(this);
+        }
+
+        setText(newText, resultCallback) {
+            this.text = newText;
+            this.updateContent(true);
+            resultCallback(this.text);
+        }
+
+        setFontColor(newFontColor, resultCallback) {
+            this.fontColor = newFontColor;
+            this.updateContent(true);
+            resultCallback(this.fontColor);
+        }
+
+        setFontSize(newFontSize, resultCallback) {
+            try {
+                const size = Math.min(Math.max(parseInt(newFontSize), this.fontSize.min), this.fontSize.max);
+                if (!isNaN(size)) this.fontSize.current = size;
+            } catch {};
+            this.updateContent(true);
+            resultCallback(this.fontSize.current);
+        }
+
+        setBold(newBold, resultCallback) {
+            this.bold = newBold;
+            this.updateContent(true);
+            resultCallback(this.bold);
+        }
+
+        setItalic(newItalic, resultCallback) {
+            this.italic = newItalic;
+            this.updateContent(true);
+            resultCallback(this.italic);
+        }
+
+        setUnderline(newUnderline, resultCallback) {
+            this.underline = newUnderline;
+            this.updateContent(true);
+            resultCallback(this.underline);
+        }
+
+        setTextAlign(newTextAlign, resultCallback  ) {
+            this.textAlign = newTextAlign;
+            this.updateContent(true);
+            resultCallback(this.textAlign);
+        }
+
+        updateContent(refreshParent=false) {
+            this.textElement.textContent = this.text === "" ? " " : this.text;
+            this.textElement.style.color = this.fontColor;
+            this.textElement.style.fontSize = this.fontSize.current + "pt";
+            this.textElement.style.fontWeight = this.bold ? "bold" : "normal";
+            this.textElement.style.fontStyle = this.italic ? "italic" : "normal";
+            this.textElement.style.textDecoration = this.underline ? "underline" : "none";
+            this.textElement.style.textAlign = this.textAlign;
+            super.updateContent(refreshParent);
+        }
+
+        save() {
+            return {
+                type: "text",
+                base: super.save(),
+                fontColor: this.fontColor,
+                fontSize: this.fontSize,
+                bold: this.bold,
+                italic: this.italic,
+                underline: this.underline,
+                textAlign: this.textAlign,
+                text: this.text,
+            }
+        }
+
+        static load(sectionObject) {
+            const section = new TextSection();
+            section.fontColor = sectionObject.fontColor;
+            section.fontSize = sectionObject.fontSize;
+            section.bold = sectionObject.bold;
+            section.italic = sectionObject.italic;
+            section.underline = sectionObject.underline;
+            section.textAlign = sectionObject.textAlign;
+            section.text = sectionObject.text;
+            return section;
+        }
+    }
+    customElements.define("custom-text-section", TextSection);
+
+    class ImageSection extends Section {
+        defaultImage = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%20-960%20960%20960%22%20fill%3D%22%23555%22%3E%3Cpath%20d%3D%22M424-320q0-81%2014.5-116.5T500-514q41-36%2062.5-62.5T584-637q0-41-27.5-68T480-732q-51%200-77.5%2031T365-638l-103-44q21-64%2077-111t141-47q105%200%20161.5%2058.5T698-641q0%2050-21.5%2085.5T609-475q-49%2047-59.5%2071.5T539-320H424Zm56%20240q-33%200-56.5-23.5T400-160q0-33%2023.5-56.5T480-240q33%200%2056.5%2023.5T560-160q0%2033-23.5%2056.5T480-80Z%22%2F%3E%3C%2Fsvg%3E";
+        image = null;
+
+        constructor() {
+            super();
+            this.image = this.defaultImage;
+        }
+
+        connectedCallback() {            
+            super.connectedCallback(document.getElementById("imageSectionTemplate"));
+            this.imageElement = this.getElementsByTagName("img")[0];
+            this.updateContent();
+        }
+
+        disconnectedCallback() {
+            [...this.children].forEach(el => el.remove());
+        }
+
+        clone() {
+            const clone = this.cloneNode(false);
+            clone.image = this.image;
+            return super.clone(clone);
+        }
+
+        createEditor() {
+            return new ImageSectionEditor(this);
+        }
+
+        setImage(newImage, resultCallback) {
+            if (newImage === null) {
+                this.image = this.defaultImage;
+                this.updateContent(true);
+                resultCallback(this.image);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+                const tempImage = new Image();
+                tempImage.addEventListener("load", () => {
+                    const canvas = document.getElementById("imageResizer");
+                    const ctx = canvas.getContext("2d");
+
+                    canvas.width = 350;
+                    canvas.height = tempImage.height * (canvas.width / tempImage.width);
+
+                    ctx.drawImage(tempImage, 0, 0, canvas.width, canvas.height);
+
+                    this.image = canvas.toDataURL();
+                    this.updateContent(true);
+                    resultCallback(this.image);
+                });
+                tempImage.src = reader.result;
+            });
+            reader.readAsDataURL(newImage);
+        }
+		
+        updateContent(refreshParent=false) {
+            this.imageElement.src = this.image;
+            this.imageElement.addEventListener("load", () => {super.updateContent(refreshParent)});
+        }
+
+        save() {
+            return {
+                type: "image",
+                base: super.save(),
+                image: this.image,
+            }
+        }
+
+        static load(sectionObject) {
+            const section = new ImageSection();
+            section.image = sectionObject.image;
+            return section;
+        }
+    }
+    customElements.define("custom-image-section", ImageSection);
+</script>
+<script id="script-section-editors">
+    class SectionEditor extends HTMLElement {
+        constructor(section) {
+            super();
+            this.section = section;
+        }
+
+        connectedCallback(template) {
+            this.classList.add(template.classList);
+            this.append(template.content.cloneNode(true));
+
+            const leftPin = this.getElementsByClassName("leftPin")[0];
+            const rightPin = this.getElementsByClassName("rightPin")[0];
+            const sectionControls = this.getElementsByTagName("custom-section-controls")[0];
+            
+            leftPin.setSection(this.section, "left");
+            rightPin.setSection(this.section, "right");
+            sectionControls.setSection(this.section);
+        }
+    }
+
+    class TextSectionEditor extends SectionEditor {
+        connectedCallback() {
+            super.connectedCallback(document.getElementById("textSectionEditorTemplate"));
+
+            const textInput = this.getElementsByClassName("textInput")[0];
+            const fontColorInput = this.getElementsByClassName("fontColorInput")[0];
+            const fontSizeInput = this.getElementsByClassName("fontSizeInput")[0];
+            const boldInput = this.getElementsByClassName("boldInput")[0];
+            const italicInput = this.getElementsByClassName("italicInput")[0];
+            const underlineInput = this.getElementsByClassName("underlineInput")[0];
+            const textAlignLeftInput = this.getElementsByClassName("textAlignLeftInput")[0];
+            const textAlignCenterInput = this.getElementsByClassName("textAlignCenterInput")[0];
+            const textAlignRightInput = this.getElementsByClassName("textAlignRightInput")[0];
+
+            textInput.value = this.section.text;
+            fontColorInput.value = this.section.fontColor;
+            fontSizeInput.value = this.section.fontSize.current;
+            fontSizeInput.min = this.section.fontSize.min;
+            fontSizeInput.max = this.section.fontSize.max;
+            boldInput.checked = this.section.bold;
+            italicInput.checked = this.section.italic;
+            underlineInput.checked = this.section.underline;
+            const alignName = Math.random();
+            textAlignLeftInput.name = alignName;
+            textAlignLeftInput.checked = this.section.textAlign === "left";
+            textAlignCenterInput.name = alignName;
+            textAlignCenterInput.checked = this.section.textAlign === "center";
+            textAlignRightInput.name = alignName;
+            textAlignRightInput.checked = this.section.textAlign === "right";
+
+            textInput.addEventListener("input", () => {this.section.setText(textInput.value, result => textInput.value = result)});
+            fontColorInput.addEventListener("input", () => {this.section.setFontColor(fontColorInput.value, result => fontColorInput.value = result)});
+            fontSizeInput.addEventListener("input", () => {this.section.setFontSize(fontSizeInput.value, result => fontSizeInput.value = result)});
+            boldInput.addEventListener("input", () => {this.section.setBold(boldInput.checked, result => boldInput.checked = result)});
+            italicInput.addEventListener("input", () => {this.section.setItalic(italicInput.checked, result => italicInput.checked = result)});
+            underlineInput.addEventListener("input", () => {this.section.setUnderline(underlineInput.checked, result => underlineInput.checked = result)});
+            const textAlignHandler = () => {this.section.setTextAlign(textAlignLeftInput.checked ? "left" : (textAlignCenterInput.checked ? "center" : "right"), result => {
+                textAlignLeftInput.checked = result === "left";
+                textAlignCenterInput.checked = result === "center";
+                textAlignRightInput.checked = result === "right";
+            })};
+            textAlignLeftInput.addEventListener("input", textAlignHandler);
+            textAlignCenterInput.addEventListener("input", textAlignHandler);
+            textAlignRightInput.addEventListener("input", textAlignHandler);
+        }
+    }
+    customElements.define("custom-text-section-editor", TextSectionEditor);
+    
+    class ImageSectionEditor extends SectionEditor {
+        connectedCallback() {
+            super.connectedCallback(document.getElementById("imageSectionEditorTemplate"));
+            
+            const imagePreview = this.getElementsByClassName("imagePreview")[0];
+            const uploadInput = this.getElementsByClassName("uploadInput")[0];
+            const resetInput = this.getElementsByClassName("resetInput")[0];
+			const pasteInput = this.getElementsByClassName("pasteInput")[0];
+
+            imagePreview.src = this.section.image;
+            
+            const uploadHandler = () => {
+                this.section.setImage(event.target === resetInput ? null : uploadInput.files[0], result => {
+                imagePreview.src = result;
+            })};
+			
+			const pasteHandler = async () => {
+				try {
+					let clipboardItems = await navigator.clipboard.read();
+					for (let clipboardItem of clipboardItems) {
+					  let imageType = clipboardItem.types.find(type => type.startsWith('image/'))
+					  //for (let imageType of imageTypes)
+					  if (imageType)
+					  {
+						let blob = await clipboardItem.getType(imageType);
+						//imagePreview.src = URL.createObjectURL(blob);
+						
+						this.section.setImage(blob, result => {
+							imagePreview.src = result;
+						});
+					  }
+					}
+				  } catch (err) {
+					alert(err.name + " " + err.message);
+					console.error(err.name, err.message);
+				  }
+			}
+			
+            uploadInput.addEventListener("input", uploadHandler);
+            resetInput.addEventListener("click", uploadHandler);
+			pasteInput.addEventListener("click", pasteHandler);
+        }
+    }
+    customElements.define("custom-image-section-editor", ImageSectionEditor);
+</script>
+<script id="script-pins">
+    class Pin extends HTMLElement {
+        section = null;
+        name = null;
+
+        connectedCallback() {
+            if (this.parentElement !== null && this.parentElement.parentElement.tagName.toLowerCase() === "custom-card") {
+                this.addEventListener("mousedown", () => {
+                    event.stopPropagation();
+                    handlePinClick(this);
+                });
+
+                this.addEventListener("mouseenter", () => {handlePinMouseEnter(this)});
+
+                this.addEventListener("mouseleave", () => {handlePinMouseLeave(this)});
+            }
+        }
+
+        setSection(newSection, newName) {
+            this.section = newSection;
+            this.name = newName;
+        }
+
+        update() {
+            this.style.display = this.section.pins[this.name].state ? "block" : "none";
+            if (this.section.pins[this.name].state) {
+                this.section.pins[this.name].strings.forEach(string => string.redraw());
+            } else {
+                this.section.pins[this.name].strings.forEach(string => string.remove());
+            }
+        }
+
+        removePinStrings() {this.section.pins[this.name].strings.forEach(string => string.remove())}
+
+        getConnection(pin) {
+            const connections = this.section.pins[this.name].strings.filter(
+                string => (string.pinASection === pin.section && string.pinAName === pin.name) || (string.pinBSection === pin.section && string.pinBName === pin.name)
+            );
+            return connections.length === 0 ? null : connections[0];
+        }
+    }
+    customElements.define("custom-pin", Pin);
+
+    class PinEditor extends HTMLElement {
+        pinName = null;
+
+        connectedCallback() {
+            this.addEventListener("click", () => {
+                if (this.section === null) return;
+                this.section.setPinState(this.pinName, !this.section.getPinState(this.pinName));
+                this.update();
+            })
+        }
+
+        setSection(newSection, newPinName) {
+            this.section = newSection;
+            this.pinName = newPinName;
+            this.update();
+        }
+
+        update() {
+            if (this.section === null) return;
+            const state = this.section.getPinState(this.pinName);
+            this.style.opacity = state ? "100%" : "30%";
+        }
+    }
+    customElements.define("custom-pin-editor", PinEditor);
+</script>
+<script id="script-section-controls">
+    class SectionControls extends HTMLElement {
+        connectedCallback() {
+            const template = document.getElementById("sectionControlsTemplate");
+            this.append(template.content.cloneNode(true));
+        }
+
+        setSection(newSection) {
+            const section = newSection;
+
+            const upInput = this.getElementsByClassName("upInput")[0];
+            const deleteInput = this.getElementsByClassName("deleteInput")[0];
+            const downInput = this.getElementsByClassName("downInput")[0];
+
+            upInput.disabled = section.isFirst();
+            downInput.disabled = section.isLast();
+
+            upInput.addEventListener("click", section.moveUp);
+            deleteInput.addEventListener("click", section.delete);
+            downInput.addEventListener("click", section.moveDown);
+        }
+    }
+    customElements.define("custom-section-controls", SectionControls);
+</script>
+<script id="script-cardEditor">
+    var cardEditorSettings = {
+        card: null,
+    };
+
+    const cardEditor = document.getElementById("cardEditor");
+    const cardEditorSections = cardEditor.getElementsByTagName("ol")[0];
+
+    function openCardEditor(card) {
+        cardEditorSettings.card = card;
+        cardEditor.style.right = "0px";
+
+        [...cardEditor.children[0].children].forEach(el => el.checked = cardEditorSettings.card.size === el.value);
+
+        [...cardEditorSections.children].forEach(sectionEditor => sectionEditor.remove());
+        for (let section of cardEditorSettings.card.sections) cardEditorSections.append(section.createEditor());
+
+        main.addEventListener("mousedown", closeCardEditor);
+    }
+
+    function closeCardEditor() {
+        cardEditorSettings.card = null;
+        cardEditor.style.right = -cardEditor.getBoundingClientRect().width + "px";
+    }
+
+    function addTextSection() {
+        cardEditorSettings.card.addSection(new TextSection());
+        openCardEditor(cardEditorSettings.card);
+    }
+
+    function addImageSection() {
+        cardEditorSettings.card.addSection(new ImageSection());
+        openCardEditor(cardEditorSettings.card);
+    }
+
+    function setCardSize(size) {
+        if (cardEditorSettings.card === null) return;
+        cardEditorSettings.card.setSize(size);
+    }
+
+    window.addEventListener("load", closeCardEditor);
+    window.addEventListener("resize", closeCardEditor);
+</script>
+<script id="script-grouping">
+    var groupingSettings = {
+        activeGroupings: [],
+    };
+
+    class GroupingBase extends HTMLElement {
+        text = {
+            top: "",
+            topElement: null,
+            bottom: "",
+            bottomElement: null,
+        };
+        topTextElement = null;
+        lines = {
+            top: null,
+            topSecond: null,
+            left: null,
+            right: null,
+            bottom: null,
+            bottomSecond: null,
+        };
+        color = "black";
+        edgeMargin = 10;
+        textMargin = 5;
+        strokeWidth = 3;
+        circle = null;
+
+        constructor() {
+            super();
+            this.draggable = false;
+            this.ondragstart = () => {return false};
+        }
+
+        connectedCallback() {
+            const template = document.getElementById("groupingTemplate");
+            this.append(template.content.cloneNode(true));
+
+            this.text.topElement = this.getElementsByClassName("groupingTextTop")[0];
+            this.text.bottomElement = this.getElementsByClassName("groupingTextBottom")[0];
+
+            this.lines.top = this.getElementsByClassName("groupingTop")[0];
+            this.lines.topSecond = this.getElementsByClassName("groupingTopSecond")[0];
+            this.lines.left = this.getElementsByClassName("groupingLeft")[0];
+            this.lines.right = this.getElementsByClassName("groupingRight")[0];
+            this.lines.bottom = this.getElementsByClassName("groupingBottom")[0];
+            this.lines.bottomSecond = this.getElementsByClassName("groupingBottomSecond")[0];
+
+            this.circle = this.getElementsByTagNameNS('http://www.w3.org/2000/svg', "circle")[0];
+
+            this.redraw();
+        }
+
+        setTopText(newTopText) {
+            this.text.top = newTopText;
+            this.redraw();
+        }
+
+        setBottomText(newBottomText) {
+            this.text.bottom = newBottomText;
+            this.redraw();
+        }
+
+        redraw(scaleFactor=1) {
+            this.text.topElement.textContent = this.text.top;
+            this.text.bottomElement.textContent = this.text.bottom;
+            
+            const topText = this.text.top !== "";
+            const bottomText = this.text.bottom !== "";
+
+            let topTextBounds = this.text.topElement.getBoundingClientRect();
+            let bottomTextBounds = this.text.bottomElement.getBoundingClientRect();
+
+            this.minWidth = Math.max(Math.max(topTextBounds.width + 40, bottomTextBounds.width + 40), 50);
+            this.width = Math.max(this.minWidth, this.width);
+
+            this.children[2].style.width =  this.width + "px";
+            this.children[2].style.height = this.height + "px";
+            this.style.width = this.width + "px";
+            this.style.height = this.height + "px"; 
+
+            this.text.topElement.style.display = topText ? "block" : "none";
+            this.lines.topSecond.style.display = topText ? "block" : "none";
+
+            this.text.bottomElement.style.display = bottomText ? "block" : "none";
+            this.lines.bottomSecond.style.display = bottomText ? "block" : "none";
+
+            this.text.topElement.style.color = this.color;
+            this.text.bottomElement.style.color = this.color;
+
+            const bounds = this.getBoundingClientRect();
+            topTextBounds = this.text.topElement.getBoundingClientRect();
+            bottomTextBounds = this.text.bottomElement.getBoundingClientRect();
+
+            for (let line in this.lines) {
+                this.lines[line].style.strokeWidth = this.strokeWidth + "px";
+                this.lines[line].style.stroke = this.color;
+            }
+
+            if (topText) {
+                this.lines.top.setAttribute("x1", this.edgeMargin);
+                this.lines.top.setAttribute("y1", this.edgeMargin);
+                this.lines.top.setAttribute("x2", (topTextBounds.x - bounds.x) / scaleFactor - this.textMargin + this.strokeWidth / 2);
+                this.lines.top.setAttribute("y2", this.edgeMargin);
+
+                this.lines.topSecond.setAttribute("x1", (topTextBounds.x - bounds.x + topTextBounds.width) / scaleFactor + this.textMargin);
+                this.lines.topSecond.setAttribute("y1", this.edgeMargin);
+                this.lines.topSecond.setAttribute("x2", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.topSecond.setAttribute("y2", this.edgeMargin);
+            } else {
+                this.lines.top.setAttribute("x1", this.edgeMargin);
+                this.lines.top.setAttribute("y1", this.edgeMargin);
+                this.lines.top.setAttribute("x2", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.top.setAttribute("y2", this.edgeMargin);
+                
+                this.lines.topSecond.setAttribute("x1", 0);
+                this.lines.topSecond.setAttribute("y1", 0);
+                this.lines.topSecond.setAttribute("x2", 0);
+                this.lines.topSecond.setAttribute("y2", 0);
+            }
+
+            if (bottomText) {
+                this.lines.bottom.setAttribute("x1", this.edgeMargin);
+                this.lines.bottom.setAttribute("y1", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.bottom.setAttribute("x2", (bottomTextBounds.x - bounds.x) / scaleFactor - this.textMargin + this.strokeWidth / 2);
+                this.lines.bottom.setAttribute("y2", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+
+                this.lines.bottomSecond.setAttribute("x1", (bottomTextBounds.x - bounds.x + bottomTextBounds.width) / scaleFactor + this.textMargin);
+                this.lines.bottomSecond.setAttribute("y1", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.bottomSecond.setAttribute("x2", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.bottomSecond.setAttribute("y2", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+            } else {
+                this.lines.bottom.setAttribute("x1", this.edgeMargin);
+                this.lines.bottom.setAttribute("y1", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.bottom.setAttribute("x2", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+                this.lines.bottom.setAttribute("y2", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+
+                this.lines.bottomSecond.setAttribute("x1", 0);
+                this.lines.bottomSecond.setAttribute("y1", 0);
+                this.lines.bottomSecond.setAttribute("x2", 0);
+                this.lines.bottomSecond.setAttribute("y2", 0);
+            }
+
+            if (!topText && !bottomText) {
+                this.circle.setAttribute("cx", this.edgeMargin);
+                this.circle.setAttribute("cy", this.edgeMargin);
+                this.circle.setAttribute("r", this.strokeWidth * 1.5);
+                this.circle.style.stroke = this.color;
+                this.circle.style.fill = this.color;
+            } else {
+                this.circle.setAttribute("r", 0);
+            }
+            
+            this.lines.left.setAttribute("x1", this.edgeMargin);
+            this.lines.left.setAttribute("y1", this.edgeMargin);
+            this.lines.left.setAttribute("x2", this.edgeMargin);
+            this.lines.left.setAttribute("y2", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+
+            this.lines.right.setAttribute("x1", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+            this.lines.right.setAttribute("y1", this.edgeMargin);
+            this.lines.right.setAttribute("x2", bounds.width / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+            this.lines.right.setAttribute("y2", bounds.height / scaleFactor - this.edgeMargin + this.strokeWidth / 2);
+        }
+    }
+
+    class Grouping extends GroupingBase {
+        hitStrokeWidth = 10;
+        hitLines = {
+            top: document.createElementNS('http://www.w3.org/2000/svg','line'),
+            topSecond: document.createElementNS('http://www.w3.org/2000/svg','line'),
+            left: document.createElementNS('http://www.w3.org/2000/svg','line'),
+            right: document.createElementNS('http://www.w3.org/2000/svg','line'),
+            bottom: document.createElementNS('http://www.w3.org/2000/svg','line'),
+            bottomSecond: document.createElementNS('http://www.w3.org/2000/svg','line'),
+        };
+
+        constructor(topText, bottomText, color, x, y, width, height) {
+            super();
+            this.text.top = topText;
+            this.text.bottom = bottomText;
+            this.color = color;
+            this.originalColor = color;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.minHeight = 50;
+            this.minWidth = 50;
+        }
+        
+        connectedCallback() {
+            super.connectedCallback();
+            groupingSettings.activeGroupings.push(this);
+
+            for (let hitLine in this.hitLines) {
+                this.hitLines[hitLine].classList.add("hitLine")
+                this.hitLines[hitLine].setAttribute("stroke-width", 12);
+                this.children[2].append(this.hitLines[hitLine]);
+            }
+
+            this.text.topElement.addEventListener("mousedown", this.handleMouseDown);
+            this.text.bottomElement.addEventListener("mousedown", this.handleMouseDown);
+            this.circle.addEventListener("mousedown", this.handleMouseDown);
+
+            this.hitLines.top.addEventListener("mousedown", this.handleTopMouseDown);
+            this.hitLines.topSecond.addEventListener("mousedown", this.handleTopMouseDown);
+            this.hitLines.left.addEventListener("mousedown", this.handleLeftMouseDown);
+            this.hitLines.right.addEventListener("mousedown", this.handleRightMouseDown);
+            this.hitLines.bottom.addEventListener("mousedown", this.handleBottomMouseDown);
+            this.hitLines.bottomSecond.addEventListener("mousedown", this.handleBottomMouseDown);
+
+            this.hitLines.top.addEventListener("mouseenter", this.handleTopMouseEnter);
+            this.hitLines.topSecond.addEventListener("mouseenter", this.handleTopSecondMouseEnter);
+            this.hitLines.left.addEventListener("mouseenter", this.handleLeftMouseEnter);
+            this.hitLines.right.addEventListener("mouseenter", this.handleRightMouseEnter);
+            this.hitLines.bottom.addEventListener("mouseenter", this.handleBottomMouseEnter);
+            this.hitLines.bottomSecond.addEventListener("mouseenter", this.handleBottomSecondMouseEnter);
+
+            this.text.topElement.addEventListener("mouseenter", this.handleMouseEnter);
+            this.text.topElement.addEventListener("mouseleave", this.handleMouseLeave);
+            this.text.bottomElement.addEventListener("mouseenter", this.handleMouseEnter);
+            this.text.bottomElement.addEventListener("mouseleave", this.handleMouseLeave);
+
+            this.updatePosition();
+        }
+
+        disconnectedCallback() {
+            const index = groupingSettings.activeGroupings.findIndex(x => x === this);
+            groupingSettings.activeGroupings = groupingSettings.activeGroupings.slice(0, index).concat(groupingSettings.activeGroupings.slice(index + 1));
+        }
+
+        handleMouseDown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+
+            const handleMouseMove = () => {
+                window.removeEventListener("mouseup", handleMouseUp);
+                this.becomePicked();
+            };
+
+            const handleMouseUp = () => {
+                window.removeEventListener("mousemove", handleMouseMove);
+                openGroupingEditor(this);
+            };
+
+            window.addEventListener("mousemove", handleMouseMove, {once: true});
+            window.addEventListener("mouseup", handleMouseUp, {once: true});
+        }
+        
+        handleMouseEnter = () => {
+            this.style.filter = "var(--hover-grouping-filter)";
+            this.redraw(pageSettings.zoom);
+        }
+
+        handleMouseLeave = () => {
+            this.style.filter = "";
+            this.redraw(pageSettings.zoom);
+        }
+
+        becomePicked() {
+            const bounds = this.getBoundingClientRect();
+            const cursorOffsetX = event.clientX - (bounds.x + bounds.width / 2);
+            const cursorOffsetY = event.clientY - (bounds.y + bounds.height / 2);
+            const preview = new GroupingPreview(this.text.top, this.text.bottom, this.color, cursorOffsetX, cursorOffsetY, this.height, this.width, this.x, this.y);
+            document.body.append(preview);
+            preview.followMouse();
+            this.remove();
+            closeGroupingEditor();
+        }
+
+        handleTopMouseDown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+
+            const initialY = this.y;
+            const initialHeight = this.height;
+            const initialClientY = event.clientY;
+            
+            const handleTopMouseMove = () => {
+                const deltaClientY = (initialClientY - event.clientY) / pageSettings.zoom;
+                this.height = Math.max(this.minHeight, initialHeight + deltaClientY);
+                this.y = initialY - (this.height - initialHeight) / 2;
+                this.updatePosition();
+            };
+            window.addEventListener("mousemove", handleTopMouseMove);
+            window.addEventListener("mouseup", () => {window.removeEventListener("mousemove", handleTopMouseMove), {once: true}});
+        }
+
+        handleLeftMouseDown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+
+            const initialX = this.x;
+            const initialWidth = this.width;
+            const initialClientX = event.clientX;
+            
+            const handleLeftMouseMove = () => {
+                const deltaClientX = (initialClientX - event.clientX) / pageSettings.zoom;
+                this.width = Math.max(this.minWidth, initialWidth + deltaClientX);
+                this.x = initialX - (this.width - initialWidth) / 2;
+                this.updatePosition();
+            };
+            window.addEventListener("mousemove", handleLeftMouseMove);
+            window.addEventListener("mouseup", () => {window.removeEventListener("mousemove", handleLeftMouseMove), {once: true}});
+        }
+
+        handleRightMouseDown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+
+            const initialX = this.x;
+            const initialWidth = this.width;
+            const initialClientX = event.clientX;
+            
+            const handleRightMouseMove = () => {
+                const deltaClientX = (event.clientX - initialClientX) / pageSettings.zoom;
+                this.width = Math.max(this.minWidth, initialWidth + deltaClientX);
+                this.x = initialX + (this.width - initialWidth) / 2;
+                this.updatePosition();
+            };
+            window.addEventListener("mousemove", handleRightMouseMove);
+            window.addEventListener("mouseup", () => {window.removeEventListener("mousemove", handleRightMouseMove), {once: true}});
+
+        }
+
+        handleBottomMouseDown = () => {
+            if (event.buttons & ~1) return;
+            event.stopPropagation();
+
+            const initialY = this.y;
+            const initialHeight = this.height;
+            const initialClientY = event.clientY;
+            
+            const handleBottomMouseMove = () => {
+                const deltaClientY = (event.clientY - initialClientY) / pageSettings.zoom;
+                this.height = Math.max(this.minHeight, initialHeight + deltaClientY);
+                this.y = initialY + (this.height - initialHeight) / 2;
+                this.updatePosition();
+            };
+            window.addEventListener("mousemove", handleBottomMouseMove);
+            window.addEventListener("mouseup", () => {window.removeEventListener("mousemove", handleBottomMouseMove), {once: true}});
+        }
+
+        handleTopMouseEnter = () => {
+            this.lines.top.classList.add("hover");
+            this.lines.topSecond.classList.add("hover");
+            this.hitLines.top.addEventListener("mouseleave", () => {
+                this.lines.top.classList.remove("hover");
+                this.lines.topSecond.classList.remove("hover");
+            }, {once: true});
+        }
+
+        handleTopSecondMouseEnter = () => {
+            this.lines.top.classList.add("hover");
+            this.lines.topSecond.classList.add("hover");
+            this.hitLines.topSecond.addEventListener("mouseleave", () => {
+                this.lines.top.classList.remove("hover");
+                this.lines.topSecond.classList.remove("hover");
+            }, {once: true});
+        }
+        
+        handleLeftMouseEnter = () => {
+            this.lines.left.classList.add("hover");
+            this.hitLines.left.addEventListener("mouseleave", () => {
+                this.lines.left.classList.remove("hover");
+            }, {once: true});
+        }
+        
+        handleRightMouseEnter = () => {
+            this.lines.right.classList.add("hover");
+            this.hitLines.right.addEventListener("mouseleave", () => {
+                this.lines.right.classList.remove("hover");
+            }, {once: true});
+        }
+        
+        handleBottomMouseEnter = () => {
+            this.lines.bottom.classList.add("hover");
+            this.lines.bottomSecond.classList.add("hover");
+            this.hitLines.bottom.addEventListener("mouseleave", () => {
+                this.lines.bottom.classList.remove("hover");
+                this.lines.bottomSecond.classList.remove("hover");
+            }, {once: true});
+        }
+
+        handleBottomSecondMouseEnter = () => {
+            this.lines.bottom.classList.add("hover");
+            this.lines.bottomSecond.classList.add("hover");
+            this.hitLines.bottomSecond.addEventListener("mouseleave", () => {
+                this.lines.bottom.classList.remove("hover");
+                this.lines.bottomSecond.classList.remove("hover");
+            }, {once: true});
+        }
+
+        setTopText(newTopText) {
+            this.text.top = newTopText;
+            this.updatePosition();
+        }
+
+        setBottomText(newBottomText) {
+            this.text.bottom = newBottomText;
+            this.updatePosition();
+        }
+
+        setColor(newColor) {
+            this.color = newColor;
+            this.updatePosition();
+        }
+
+        updatePosition() {
+            const screenCoords = mainToScreenCoords(this.x, this.y);
+            this.style.left = screenCoords.x + "px";
+            this.style.top = screenCoords.y + "px";
+            this.style.transform = "translate(-50%, -50%) scale(" + pageSettings.zoom + ")";
+            this.redraw(pageSettings.zoom);
+        }
+    
+        redraw(scaleFactor) {
+            super.redraw(scaleFactor);
+            
+            for (let line in this.lines) {
+                this.hitLines[line].setAttribute("x1", this.lines[line].getAttribute("x1"));
+                this.hitLines[line].setAttribute("y1", this.lines[line].getAttribute("y1"));
+                this.hitLines[line].setAttribute("x2", this.lines[line].getAttribute("x2"));
+                this.hitLines[line].setAttribute("y2", this.lines[line].getAttribute("y2"));
+            }
+        }
+
+        save() {
+            return {
+                text: {
+                    top: this.text.top,
+                    bottom: this.text.bottom,
+                },
+                color: this.color,
+                x: this.x,
+                y: this.y,
+                width: this.width,
+                height: this.height,
+            }
+        }
+
+        static load(groupingObject) {
+            const grouping = new Grouping(
+                groupingObject.text.top,
+                groupingObject.text.bottom,
+                groupingObject.color,
+                groupingObject.x,
+                groupingObject.y,
+                groupingObject.width,
+                groupingObject.height,
+            );
+            return grouping;
+        }
+    }
+    customElements.define("custom-grouping", Grouping);
+
+    class GroupingPreview extends GroupingBase {
+        originalColor = null;
+        fallbackX = null;
+        fallbackY = null;
+
+        constructor(topText, bottomText, color, cursorOffsetX, cursorOffsetY, height=70, width=200, fallbackX=null, fallbackY=null) {
+            super();
+            this.text.top = topText;
+            this.text.bottom = bottomText;
+            this.color = color;
+            this.cursorOffsetX = cursorOffsetX;
+            this.cursorOffsetY = cursorOffsetY;
+            this.originalColor = color;
+            this.width = width;
+            this.height = height;
+            this.fallbackX = fallbackX;
+            this.fallbackY = fallbackY;
+        }
+
+        connectedCallback() {
+            super.connectedCallback();
+            window.addEventListener("mousemove", this.followMouse);
+            window.addEventListener("mouseup", this.place);
+        }
+
+        disconnectedCallback() {
+            window.removeEventListener("mousemove", this.followMouse);
+            window.removeEventListener("mouseup", this.place);
+        }
+
+        followMouse = () => {
+            moveElementToMouse(this, -this.cursorOffsetX, -this.cursorOffsetY);
+
+            const elementsUnder = document.elementsFromPoint(event.clientX, event.clientY);
+
+            const originalColor = this.color;
+            if (elementsUnder.filter(x => x.id === "trash").length > 0) {
+                this.color = "red";
+            } else if (elementsUnder.filter(x => x.tagName.toUpperCase() === "ASIDE").length === 0) {
+                this.color = this.originalColor;
+            } else {
+                this.color = "orange";
+            }
+            
+            this.style.transform = "translate(-50%, -50%) scale(" + pageSettings.zoom * 1.02 + ")";
+            this.redraw(pageSettings.zoom * 1.02);
+        }
+
+        place = () => {
+            this.color = this.originalColor;
+
+            const elementsUnder = document.elementsFromPoint(event.clientX, event.clientY);
+
+            const originalColor = this.color;
+            if (elementsUnder.filter(x => x.id === "trash").length > 0) {
+                this.remove();
+            } else if (elementsUnder.filter(x => x.tagName.toUpperCase() === "ASIDE").length === 0) {
+                // Transform mouse coords to board coords
+                const x = (event.clientX - this.cursorOffsetX - pageSettings.pan.x) / pageSettings.zoom;
+                const y = (event.clientY - this.cursorOffsetY - pageSettings.pan.y) / pageSettings.zoom;
+                const grouping = new Grouping(this.text.top, this.text.bottom, this.color, x, y, this.width, this.height);
+                main.append(grouping);
+                this.remove();
+            } else {
+                if (this.fallbackX === null || this.fallbackY === null) {
+                    this.remove();
+                } else {
+                    const grouping = new Grouping(this.text.top, this.text.bottom, this.color, this.fallbackX, this.fallbackY, this.width, this.height);
+                    main.append(grouping);
+                    this.redraw();
+                    this.remove();
+                }
+            }
+        }
+    }
+    customElements.define("custom-grouping-preview", GroupingPreview);
+
+    class GroupingTemplate extends GroupingBase {
+        hovered = false;
+
+        connectedCallback() {
+            super.connectedCallback();
+            this.children[0].addEventListener("mouseenter", this.handleMouseEnter);
+            this.children[0].addEventListener("mouseleave", this.handleMouseLeave);
+            this.children[1].addEventListener("mouseenter", this.handleMouseEnter);
+            this.children[1].addEventListener("mouseleave", this.handleMouseLeave);
+            [...this.children[2].children].forEach(child => child.addEventListener("mouseenter", this.handleMouseEnter));
+            [...this.children[2].children].forEach(child => child.addEventListener("mouseleave", this.handleMouseLeave));
+            this.addEventListener("mousedown", this.handleMouseDown);
+        }
+
+        handleMouseEnter = () => {
+            this.hovered = true;
+            this.redraw();
+        }
+
+        handleMouseLeave = () => {
+            this.hovered = false;
+            this.redraw();            
+        }
+
+        handleMouseDown = () => {
+            if (event.buttons & ~1) return;
+            const bounds = this.getBoundingClientRect();
+            const cursorOffsetX = event.clientX - (bounds.x + bounds.width / 2);
+            const cursorOffsetY = event.clientY - (bounds.y + bounds.height / 2);
+            const preview = new GroupingPreview(this.text.top, this.text.bottom, "#fff", cursorOffsetX, cursorOffsetY);
+            document.body.append(preview);
+            preview.followMouse();
+        }
+
+        redraw = () => {
+            const originalColor = this.color;
+            this.color = this.hovered ? "#cc4" : originalColor;
+
+            const bounds = this.getBoundingClientRect();
+            this.children[2].style.width = bounds.width + "px";
+            this.children[2].style.height = bounds.height + "px";
+
+            super.redraw();
+            this.color = originalColor;
+        }
+    }
+    customElements.define("custom-grouping-template", GroupingTemplate);
+    
+    function updateGroupings() {groupingSettings.activeGroupings.forEach(grouping => {grouping.updatePosition()})}
+</script>
+<script id="script-groupingEditor">
+    var groupingEditorSettings = {
+        grouping: null,
+    };
+
+    const groupingEditor = document.getElementById("groupingEditor");
+
+    function openGroupingEditor(grouping) {
+        groupingEditorSettings.grouping = grouping;
+        groupingEditor.style.right = "0px";
+
+        groupingEditor.children[0].children[0].value = grouping.text.top;
+        groupingEditor.children[0].children[1].value = grouping.text.bottom;
+        groupingEditor.children[0].children[2].value = grouping.color;
+
+        main.addEventListener("mousedown", closeGroupingEditor);
+    }
+
+    function closeGroupingEditor() {
+        groupingEditorSettings.grouping = null;
+        groupingEditor.style.right = -groupingEditor.getBoundingClientRect().width + "px";
+    }
+
+    function setGroupingTopText(newTopText) {
+        if (groupingEditorSettings.grouping === null) return;
+        groupingEditorSettings.grouping.setTopText(newTopText);
+    }
+
+    function setGroupingBottomText(newBottomText) {
+        if (groupingEditorSettings.grouping === null) return;
+        groupingEditorSettings.grouping.setBottomText(newBottomText);
+    }
+
+    function setGroupingColor(newColor) {
+        if (groupingEditorSettings.grouping === null) return;
+        groupingEditorSettings.grouping.setColor(newColor);
+    }
+
+    window.addEventListener("load", closeGroupingEditor);
+    window.addEventListener("resize", closeGroupingEditor);
+</script>
+<script id="script-utility">
+    function moveElementToMouse(element, offsetX=0, offsetY=0, mouseEvent=event) {
+        element.style.left = mouseEvent.clientX + offsetX + "px";
+        element.style.top = mouseEvent.clientY + offsetY + "px";
+    }
+
+    function mainToScreenCoords(x, y) {
+        return {
+            x: x * pageSettings.zoom + pageSettings.pan.x,
+            y: y * pageSettings.zoom + pageSettings.pan.y,
+        };
+    }
+
+    function screenToMainCoords(x, y) {
+        return {
+            x: (x - pageSettings.pan.x) / pageSettings.zoom,
+            y: (y - pageSettings.pan.y) / pageSettings.zoom,
+        };
+    }
+
+</script>
+<script id="script-save">
+    function save() {
+        const saveObject = {
+            version: 1,
+            filename: pageSettings.filename,
+            cards: cardSettings.activeCards.map(card => card.save()),
+            groupings: groupingSettings.activeGroupings.map(grouping => grouping.save()),
+        }
+
+        return btoa(JSON.stringify(saveObject));
+    }
+
+    function load(saveString) {
+        const saveObject = JSON.parse(atob(saveString));
+        switch (saveObject.version) {
+            case 1:
+                load_1(saveObject);
+                break;
+            default:
+                console.error("Unknown version number: " + saveObject.version);
+        }
+    }
+
+    function clear() {
+        pageSettings.filename = "file";
+        cardSettings.activeCards.forEach(card => card.remove());
+        groupingSettings.activeGroupings.forEach(grouping => grouping.remove());
+    }
+
+    function clearWithConfirm() {   
+        if (!confirm("Are you sure you wish to clear the current page?")) return;
+        clear();
+    }
+
+    function reload() {
+        const saveString = save();
+        clear();
+        load(saveString);
+    }
+
+    function load_1(saveObject) {
+        pageSettings.filename = saveObject.filename;
+        saveObject.cards.forEach(cardString => main.append(Card.load(cardString)));
+        saveObject.groupings.forEach(groupingString => main.append(Grouping.load(groupingString)));
+        loadPinStrings(saveObject.cards);
+    }
+
+    function saveLocal() {
+        const saveString = save();
+        localStorage.setItem("save", saveString);
+    }
+
+    function loadLocal() {
+        const saveString = localStorage.getItem("save");
+        if (saveString !== null) load(saveString);
+    }
+
+    function saveLocalWithConfirm() {
+        saveLocal();
+        alert("Save Successful!");
+    }
+
+    function loadLocalWithConfirm() {
+        if (!confirm("Are you sure you wish to overwrite the current page?")) return;
+        clear();
+        loadLocal();
+    }
+
+    function saveFile() {
+        const filename = prompt("Enter File Name: ", pageSettings.filename);
+        if (filename === null) return;
+        pageSettings.filename = filename.split(".")[0]
+        const saveLink = document.createElement("a");
+        saveLink.href = "data:text/plain," + save();
+        saveLink.download = pageSettings.filename + ".board2";
+        saveLink.click();
+    }
+
+    function loadFile() {
+        if (!confirm("Are you sure you wish to overwrite the current page?")) return;
+        clear();
+        const loadInput = document.createElement("input");
+        loadInput.type = "file";
+        loadInput.accept = ".board,.board2";
+        loadInput.addEventListener("input", () => {
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+                switch (loadInput.files[0].name.split(".")[1]) {
+                    case "board":
+                        load_board(reader.result);
+                        break;
+                    case "board2":
+                        load(reader.result);
+                        break;
+                    default:
+                        console.error("Unrecognised format: " + loadInput.files[0].name.split(".")[1]);
+                }
+            })
+            reader.readAsText(loadInput.files[0]);
+        });
+        loadInput.click();
+    }
+
+    function load_board(saveString) {
+        const saveObject = JSON.parse(saveString);
+
+        const unlinkedCards = {};
+
+        let maxCard = 0;
+        for (const i in saveObject) maxCard = Math.max(maxCard, parseInt(i));
+
+        for (let i=0; i<maxCard; i++) {
+            // Card didn't exist, add Placeholder to maintain positions
+            if (saveObject[`${i}`] === undefined) {
+                cardSettings.activeCards.push(null);
+                continue;
+            }
+
+            const cardObject = saveObject[`${i}`];
+
+            const card = new Card("medium");
+            card.x = cardObject.position.x;
+            card.y = cardObject.position.y;
+            card.rotate = "0deg";
+
+            const hasTitle = cardObject.title !== undefined;
+            const hasImage = cardObject.image !== undefined;
+            const hasCaption = cardObject.caption !== undefined;
+            const hasComments = cardObject.comments !== undefined;
+            const hasLinkedComment = !hasTitle && !hasImage && !hasCaption && hasComments;
+
+            // Card is empty, add Placeholder to maintain positions
+            if (!hasTitle && !hasImage && !hasCaption && !hasComments) {
+                cardSettings.activeCards.push(null);
+                continue;
+            }
+
+            // Add Title Section
+            if (hasTitle) {
+                const title = new TextSection();
+                title.text = cardObject.title;
+                title.fontSize.current = 10;
+                title.bold = true;
+                title.pins.left.state = true;
+                title.pins.right.state = true;
+                card.sections.push(title);
+            }
+
+            // Add Image Section
+            if (hasImage) {
+                const image = new ImageSection();
+                if (!hasTitle) {
+                    image.pins.left.state = true;
+                    image.pins.right.state = true;
+                }
+                card.sections.push(image);
+            }
+
+            // Add Caption Section
+            if (hasCaption) {
+                const caption = new TextSection();
+                caption.text = cardObject.caption;
+                caption.italic = true;
+                if (!hasTitle && !hasImage) {    
+                    caption.pins.left.state = true;
+                    caption.pins.right.state = true;
+                }
+                card.sections.push(caption);
+            }
+
+            // Card has only Comments, add First Comment to Main Card
+            if (hasLinkedComment) {
+                const linkedComment = new TextSection();
+                linkedComment.text = cardObject.comments[0];
+                linkedComment.fontSize.current = 7;
+                linkedComment.pins.left.state = true;
+                card.sections.push(linkedComment);
+            }
+            
+            main.append(card);
+
+            unlinkedCards[cardSettings.activeCards.length - 1] = [];
+
+            if (!hasComments) continue;
+
+            // Add Comments as separate Unlinked Cards
+            cardObject.comments.slice(hasLinkedComment ? 1 : 0).forEach(commentText => {
+                const commentCard = new Card("medium");
+                commentCard.x = cardObject.position.x;
+                commentCard.rotate = "0deg";
+                const comment = new TextSection();
+                comment.text = commentText;
+                comment.fontSize.current = 7;
+                comment.pins.left.state = true;
+                commentCard.sections.push(comment);
+                unlinkedCards[cardSettings.activeCards.length - 1].push(commentCard);
+            });
+        }
+        
+        for (const i in saveObject) {
+            const cardObject = saveObject[i];
+            if (cardObject.connections === undefined) continue;
+            if (cardSettings.activeCards[parseInt(i)] === null || cardSettings.activeCards[parseInt(i)] === undefined) {
+                console.log("Tried to draw a connection from a non-existent card:", i);
+                continue;
+            }
+                
+            for (const c of cardObject.connections) {
+                const iTopSection = cardSettings.activeCards[parseInt(i)].sections[0];
+                if (cardSettings.activeCards[c] === null || cardSettings.activeCards[c] === undefined) {
+                    console.log("Tried to draw a connection to a non-existent card.", i, c);
+                    continue;
+                }
+                const cTopSection = cardSettings.activeCards[c].sections[0];
+
+                if (iTopSection.pins.left.element.getConnection(cTopSection.pins.left.element) !== null) continue;
+                if (iTopSection.pins.left.element.getConnection(cTopSection.pins.right.element) !== null) continue;
+                if (iTopSection.pins.right.element.getConnection(cTopSection.pins.left.element) !== null) continue;
+                if (iTopSection.pins.right.element.getConnection(cTopSection.pins.right.element) !== null) continue;
+
+                let pinA;
+                let pinB;
+
+                if (!iTopSection.pins.right.state || cardObject.position.x > saveObject[c].position.x) {
+                    pinA = iTopSection.pins.left.element;
+                } else {
+                    pinA = iTopSection.pins.right.element;
+                }
+
+                if (!cTopSection.pins.right.state || cardObject.position.x <= saveObject[c].position.x) {
+                    pinB = cTopSection.pins.left.element;
+                } else {
+                    pinB = cTopSection.pins.right.element;
+                }
+
+                createPinString(pinA, pinB, "red");
+            }
+        }
+
+        for (let i in unlinkedCards) {
+            const mainCard = cardSettings.activeCards[i];
+            const margin = 5;
+            let y = mainCard.y + mainCard.getBoundingClientRect().height / 2 / pageSettings.zoom + margin;
+
+            for (let card of unlinkedCards[i]) {
+                main.append(card);
+                const bounds = card.getBoundingClientRect();
+                card.y = y + bounds.height / 2 / pageSettings.zoom;
+                y += bounds.height / pageSettings.zoom + margin;
+            }
+        }
+
+        cardSettings.activeCards = cardSettings.activeCards.filter(card => card !== null)
+
+        updateCards();
+    }
+
+    window.addEventListener("load", loadLocal);
+</script>
+<script id="script-card-multiselect">
+    var cardMultiSelectSettings = {
+        x: null,
+        y: null,
+    };
+
+    const multiSelectBox = document.getElementById("multiSelectBox");
+
+    function updateMultiSelectBox() {
+        multiSelectBox.style.left = Math.min(event.clientX, cardMultiSelectSettings.x) + "px";
+        multiSelectBox.style.top = Math.min(event.clientY, cardMultiSelectSettings.y) + "px";
+        multiSelectBox.style.width = Math.abs(event.clientX - cardMultiSelectSettings.x) + "px";
+        multiSelectBox.style.height = Math.abs(event.clientY - cardMultiSelectSettings.y) + "px";
+    }
+
+    function selectMultiple() {
+        if (event.button > 1) return;
+        window.removeEventListener("mousemove", updateMultiSelectBox);
+        window.removeEventListener("mouseup", selectMultiple);
+        multiSelectBox.hidden = true;
+
+        const coords = {
+            x1: Math.min(event.clientX, cardMultiSelectSettings.x),
+            y1: Math.min(event.clientY, cardMultiSelectSettings.y),
+            x2: Math.max(event.clientX, cardMultiSelectSettings.x),
+            y2: Math.max(event.clientY, cardMultiSelectSettings.y),
+        };
+
+        cardSettings.activeCards.filter(card => {
+            const bounds = card.getBoundingClientRect();
+            const leftEdge = bounds.x;
+            const rightEdge = bounds.x + bounds.width;
+            const topEdge = bounds.y;
+            const bottomEdge = bounds.y + bounds.height;
+            if (leftEdge > coords.x2) return false;
+            if (rightEdge < coords.x1) return false;
+            if (topEdge > coords.y2) return false;
+            if (bottomEdge < coords.y1) return false;
+            return true;
+        }).forEach(card => card.becomePicked());
+
+        cardMultiSelectSettings.x = 0;
+        cardMultiSelectSettings.y = 0;
+        multiSelectBox.style.left = 0;
+        multiSelectBox.style.top = 0;
+        multiSelectBox.style.width = 0;
+        multiSelectBox.style.height = 0;
+    }
+
+    main.addEventListener("mousedown", () => {
+        if (event.buttons & ~1 || event.shiftKey) return;
+        if (document.getElementsByTagName("custom-card-preview").length > 0) return;
+
+        window.addEventListener("mousemove", beginMultiSelect, {once: true});
+        window.addEventListener("mouseup", () => {window.removeEventListener("mousemove", beginMultiSelect)}, {once: true});
+    });
+
+    function beginMultiSelect() {
+        cardMultiSelectSettings.x = event.clientX;
+        cardMultiSelectSettings.y = event.clientY;
+
+        multiSelectBox.hidden = false;
+        multiSelectBox.style.left = cardMultiSelectSettings.x + "px";
+        multiSelectBox.style.top = cardMultiSelectSettings.y + "px";
+        multiSelectBox.style.width = "0px";
+        multiSelectBox.style.height = "0px";
+
+        window.addEventListener("mousemove", updateMultiSelectBox);
+        window.addEventListener("mouseup", selectMultiple);
+
+        window.addEventListener("contextmenu", () => {
+            event.preventDefault();
+            multiSelectBox.hidden = true;
+            window.removeEventListener("mousemove", updateMultiSelectBox);
+            window.removeEventListener("mouseup", selectMultiple);
+            return false;
+        });
+    }
+</script>
+</html>
